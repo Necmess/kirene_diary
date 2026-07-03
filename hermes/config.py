@@ -22,6 +22,8 @@ class Settings:
     mcp_notion_url: str = ""
     mcp_timeout: int = 30
     mcp_notion_search_tool: str = "notion_search"
+    mcp_notion_read_tool: str = "notion_read_page"
+    mcp_notion_todo_tool: str = "notion_create_todo"
 
 
 class ConfigError(ValueError):
@@ -85,6 +87,12 @@ def load_settings() -> Settings:
         mcp_timeout=mcp_timeout,
         mcp_notion_search_tool=os.environ.get(
             "CYRENE_MCP_NOTION_SEARCH_TOOL", Settings.mcp_notion_search_tool
+        ),
+        mcp_notion_read_tool=os.environ.get(
+            "CYRENE_MCP_NOTION_READ_TOOL", Settings.mcp_notion_read_tool
+        ),
+        mcp_notion_todo_tool=os.environ.get(
+            "CYRENE_MCP_NOTION_TODO_TOOL", Settings.mcp_notion_todo_tool
         ),
     )
     if settings.storage == "notion":

@@ -11,12 +11,13 @@ from hermes.config import ConfigError, load_dotenv, load_settings
 from hermes.discord_app import (
     DiscordSessionRegistry,
     clip_discord_message,
+    discord_memory_scope,
     extract_command_text,
     handle_discord_text,
 )
 from hermes.mcp_client import DisabledMcpClient, McpClientError
 from hermes.memory import DiaryIndexMemory, ProfileMemory
-from hermes.tool_router import ToolRouter
+from hermes.tool_router import ToolPolicy, ToolRouter
 from storage import LocalMarkdownStorage, NotionStorage
 
 
@@ -68,6 +69,34 @@ class HermesAgentTest(unittest.TestCase):
             self.assertEqual(len(data["entries"]), 1)
             self.assertIn("코드 작업", data["entries"][0]["summary"])
             self.assertIn("일기 인덱스", agent.memory_report())
+
+    def test_diary_draft_can_be_saved_or_discarded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            index = DiaryIndexMemory(Path(directory) / "index.json")
+            agent = HermesAgent(
+                FakeLLM("초안 내용"),
+                LocalMarkdownStorage(Path(directory) / "diary"),
+                profile_memory=ProfileMemory(Path(directory) / "profile.json"),
+                diary_index=index,
+            )
+
+            agent.respond("오늘 테스트했어")
+            draft = agent.draft_diary()
+
+            self.assertEqual(draft, "초안 내용")
+            self.assertTrue(agent.has_diary_draft())
+            self.assertEqual(index.load()["entries"], [])
+
+            saved, location = agent.save_diary_draft()
+
+            self.assertEqual(saved, "초안 내용")
+            self.assertTrue(location.endswith(".md"))
+            self.assertFalse(agent.has_diary_draft())
+            self.assertEqual(len(index.load()["entries"]), 1)
+
+            agent.draft_diary()
+            self.assertTrue(agent.discard_diary_draft())
+            self.assertFalse(agent.has_diary_draft())
 
     def test_recent_and_search_diaries(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -178,6 +207,8 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.mcp_notion_url, "http://localhost:8765")
         self.assertEqual(settings.mcp_timeout, 9)
         self.assertEqual(settings.mcp_notion_search_tool, "search")
+        self.assertEqual(settings.mcp_notion_read_tool, "notion_read_page")
+        self.assertEqual(settings.mcp_notion_todo_tool, "notion_create_todo")
 
 
 class CommandTest(unittest.TestCase):
@@ -185,6 +216,8 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(parse_command("/help").kind, "help")
         self.assertEqual(parse_command("/최근").kind, "recent")
         self.assertEqual(parse_command("/일기").kind, "diary")
+        self.assertEqual(parse_command("/저장").kind, "save_diary")
+        self.assertEqual(parse_command("/초안삭제").kind, "discard_diary")
         self.assertEqual(parse_command("/종료").kind, "exit")
         self.assertEqual(parse_command("/도구").kind, "tool_status")
 
@@ -200,6 +233,12 @@ class CommandTest(unittest.TestCase):
         notion = parse_command("/노션검색 일기")
         self.assertEqual(notion.kind, "notion_search")
         self.assertEqual(notion.value, "일기")
+        notion_read = parse_command("/노션읽기 page-id")
+        todo = parse_command("/할일추가 테스트")
+        self.assertEqual(notion_read.kind, "notion_read")
+        self.assertEqual(notion_read.value, "page-id")
+        self.assertEqual(todo.kind, "notion_todo")
+        self.assertEqual(todo.value, "테스트")
 
     def test_format_diary_entries(self) -> None:
         text = format_diary_entries(
@@ -288,7 +327,10 @@ class DiscordAdapterTest(unittest.TestCase):
         second = registry.get("1")
 
         self.assertIs(first, second)
-        self.assertEqual(created, ["discord_1"])
+        self.assertEqual(created, ["1"])
+
+    def test_discord_memory_scope_uses_guild_and_user(self) -> None:
+        self.assertEqual(discord_memory_scope("guild", "user"), "discord_guild_user")
 
     def test_handle_discord_tool_status(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -300,6 +342,27 @@ class DiscordAdapterTest(unittest.TestCase):
             )
 
             self.assertIn("도구 상태", handle_discord_text(agent, "/도구"))
+
+    def test_handle_discord_drafts_before_save(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            index = DiaryIndexMemory(Path(directory) / "index.json")
+            agent = HermesAgent(
+                FakeLLM("초안 내용"),
+                LocalMarkdownStorage(Path(directory) / "diary"),
+                profile_memory=ProfileMemory(Path(directory) / "profile.json"),
+                diary_index=index,
+            )
+
+            handle_discord_text(agent, "오늘 테스트했어")
+            draft_response = handle_discord_text(agent, "/일기")
+
+            self.assertIn("초안 내용", draft_response)
+            self.assertEqual(index.load()["entries"], [])
+
+            save_response = handle_discord_text(agent, "/저장")
+
+            self.assertIn("저장 위치", save_response)
+            self.assertEqual(len(index.load()["entries"]), 1)
 
 
 class ToolRouterTest(unittest.TestCase):
@@ -336,6 +399,43 @@ class ToolRouterTest(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertEqual(result.message, "검색 결과")
         self.assertEqual(client.calls, [("search", {"query": "키레네"})])
+
+    def test_notion_read_and_todo_route_to_mcp_tools(self) -> None:
+        class FakeMcp:
+            def __init__(self):
+                self.calls = []
+
+            def call_tool(self, name, arguments):
+                self.calls.append((name, arguments))
+                return {"content": [{"text": "ok"}]}
+
+        client = FakeMcp()
+        router = ToolRouter(
+            mcp_client=client,
+            notion_enabled=True,
+            notion_read_tool="read",
+            notion_create_todo_tool="todo",
+        )
+
+        self.assertTrue(router.read_notion_page("page").ok)
+        self.assertTrue(router.create_notion_todo("task").ok)
+        self.assertEqual(
+            client.calls,
+            [("read", {"page": "page"}), ("todo", {"text": "task"})],
+        )
+
+    def test_policy_blocks_read_or_create(self) -> None:
+        router = ToolRouter(
+            mcp_client=object(),
+            notion_enabled=True,
+            policy=ToolPolicy(allow_read=False, allow_create=False),
+        )
+
+        self.assertFalse(router.search_notion("x").ok)
+        self.assertFalse(router.read_notion_page("x").ok)
+        self.assertFalse(router.create_notion_todo("x").ok)
+        self.assertFalse(router.update_notion_page("x", "y").ok)
+        self.assertFalse(router.delete_notion_page("x").ok)
 
 
 if __name__ == "__main__":

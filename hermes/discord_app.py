@@ -41,7 +41,8 @@ def run_discord_bot(settings: Settings) -> None:
         )
         if content is None:
             return
-        agent = sessions.get(str(message.author.id))
+        guild_id = str(message.guild.id) if message.guild else "dm"
+        agent = sessions.get(discord_memory_scope(guild_id, str(message.author.id)))
         response = handle_discord_text(agent, content)
         if response:
             await message.channel.send(clip_discord_message(response))
@@ -56,7 +57,7 @@ class DiscordSessionRegistry:
 
     def get(self, scope: str) -> HermesAgent:
         if scope not in self.sessions:
-            self.sessions[scope] = self.factory(f"discord_{scope}")
+            self.sessions[scope] = self.factory(scope)
         return self.sessions[scope]
 
 
@@ -80,6 +81,10 @@ def handle_discord_text(agent: HermesAgent, text: str) -> str:
         return agent.tool_status()
     if command.kind == "notion_search":
         return agent.search_notion(command.value)
+    if command.kind == "notion_read":
+        return agent.read_notion_page(command.value)
+    if command.kind == "notion_todo":
+        return agent.create_notion_todo(command.value)
     if command.kind == "profile_update":
         if not command.value:
             return "저장할 내용을 함께 입력해줘."
@@ -89,10 +94,20 @@ def handle_discord_text(agent: HermesAgent, text: str) -> str:
         if not agent.can_write_diary():
             return "아직 아무 얘기도 못 들었는걸? 오늘 있었던 일부터 들려줘♪"
         try:
-            entry, location = agent.write_diary()
+            entry = agent.draft_diary()
         except LocalLLMError as exc:
             return str(exc)
+        return f"{entry}\n\n괜찮으면 /저장 이라고 말해줘♪"
+    if command.kind == "save_diary":
+        try:
+            entry, location = agent.save_diary_draft()
+        except ValueError:
+            return "아직 저장할 일기 초안이 없어. 먼저 /일기 로 초안을 만들자♪"
         return f"{entry}\n\n저장 위치: {location}"
+    if command.kind == "discard_diary":
+        if agent.discard_diary_draft():
+            return "초안은 지워뒀어. 다시 쓰고 싶으면 /일기 라고 말해줘♪"
+        return "지울 초안은 없어."
 
     try:
         return agent.respond(command.value)
@@ -122,6 +137,10 @@ def extract_command_text(content: str, prefix: str, bot_user_id: str) -> str | N
         if marker and stripped.startswith(marker):
             return stripped[len(marker) :].strip()
     return None
+
+
+def discord_memory_scope(guild_id: str, user_id: str) -> str:
+    return f"discord_{guild_id}_{user_id}"
 
 
 def clip_discord_message(text: str, limit: int = 1900) -> str:

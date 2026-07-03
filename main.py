@@ -37,8 +37,20 @@ def write_diary(agent: HermesAgent) -> None:
     if not agent.can_write_diary():
         cyrene_says("아직 아무 얘기도 못 들었는걸? 오늘 있었던 일부터 들려줘♪")
         return
-    print(f"{DIM}(키레네가 일기를 쓰는 중…){RESET}")
-    entry, location = agent.write_diary()
+    print(f"{DIM}(키레네가 일기 초안을 쓰는 중…){RESET}")
+    entry = agent.draft_diary()
+    print("\n" + "=" * 50)
+    print(entry)
+    print("=" * 50)
+    cyrene_says("초안을 써뒀어. 괜찮으면 /저장 이라고 말해줘♪")
+
+
+def save_diary(agent: HermesAgent) -> None:
+    try:
+        entry, location = agent.save_diary_draft()
+    except ValueError:
+        cyrene_says("아직 저장할 일기 초안이 없어. 먼저 /일기 로 초안을 만들자♪")
+        return
     print("\n" + "=" * 50)
     print(entry)
     print("=" * 50)
@@ -113,6 +125,12 @@ def main() -> None:
         if command.kind == "notion_search":
             print("\n" + agent.search_notion(command.value) + "\n")
             continue
+        if command.kind == "notion_read":
+            print("\n" + agent.read_notion_page(command.value) + "\n")
+            continue
+        if command.kind == "notion_todo":
+            print("\n" + agent.create_notion_todo(command.value) + "\n")
+            continue
         if command.kind == "profile_update":
             if not command.value:
                 print(f"{DIM}저장할 내용을 함께 입력해주세요.{RESET}")
@@ -125,7 +143,16 @@ def main() -> None:
                 write_diary(agent)
             except LocalLLMError as e:
                 print(f"{DIM}{e}{RESET}")
+            continue
+        if command.kind == "save_diary":
+            save_diary(agent)
             break
+        if command.kind == "discard_diary":
+            if agent.discard_diary_draft():
+                cyrene_says("초안은 지워뒀어. 다시 쓰고 싶으면 /일기 라고 말해줘♪")
+            else:
+                cyrene_says("지울 초안은 없어.")
+            continue
 
         try:
             reply = agent.respond(command.value)

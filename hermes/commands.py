@@ -6,6 +6,8 @@ from typing import Literal
 CommandKind = Literal[
     "chat",
     "diary",
+    "save_diary",
+    "discard_diary",
     "exit",
     "help",
     "memory_report",
@@ -14,6 +16,8 @@ CommandKind = Literal[
     "search",
     "tool_status",
     "notion_search",
+    "notion_read",
+    "notion_todo",
 ]
 
 
@@ -26,12 +30,16 @@ class ParsedCommand:
 
 HELP_TEXT = """\
 명령어
-- /일기, /diary: 지금까지의 대화로 일기 생성
+- /일기, /diary: 지금까지의 대화로 일기 초안 생성
+- /저장, /save: 마지막 일기 초안 저장
+- /초안삭제, /discard: 마지막 일기 초안 삭제
 - /기억, /memory: 저장된 장기 기억과 일기 인덱스 확인
 - /최근, /recent: 최근 일기 인덱스 보기
 - /일기검색 검색어, /search query: 일기 인덱스 검색
 - /도구, /tools: 외부 도구 연결 상태 확인
 - /노션검색 검색어, /notion query: Notion MCP 검색
+- /노션읽기 페이지, /notion-read page: Notion MCP 페이지 읽기
+- /할일추가 내용, /todo text: Notion MCP 할 일 추가
 - /이름 이름, /name name: 사용자 이름 저장
 - /기억추가 내용, /remember text: 장기 기억 메모 추가
 - /선호추가 내용, /prefer text: 선호하는 응답 방식 추가
@@ -54,6 +62,10 @@ def parse_command(user_input: str) -> ParsedCommand:
         return ParsedCommand(kind="tool_status")
     if text in ("/일기", "/diary"):
         return ParsedCommand(kind="diary")
+    if text in ("/저장", "/save"):
+        return ParsedCommand(kind="save_diary")
+    if text in ("/초안삭제", "/discard"):
+        return ParsedCommand(kind="discard_diary")
 
     for prefix in ("/일기검색 ", "/search "):
         if text.startswith(prefix):
@@ -61,6 +73,12 @@ def parse_command(user_input: str) -> ParsedCommand:
     for prefix in ("/노션검색 ", "/notion "):
         if text.startswith(prefix):
             return ParsedCommand(kind="notion_search", value=text[len(prefix) :].strip())
+    for prefix in ("/노션읽기 ", "/notion-read "):
+        if text.startswith(prefix):
+            return ParsedCommand(kind="notion_read", value=text[len(prefix) :].strip())
+    for prefix in ("/할일추가 ", "/todo "):
+        if text.startswith(prefix):
+            return ParsedCommand(kind="notion_todo", value=text[len(prefix) :].strip())
 
     profile_commands = {
         "/이름 ": "name",

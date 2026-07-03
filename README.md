@@ -27,15 +27,19 @@ python -m unittest discover -s tests
 
 ## 사용
 
-키레네와 오늘 있었던 일을 자유롭게 얘기한 뒤 `/일기`를 입력하면 대화 내용으로 일기를 생성해 `diary/YYYY-MM-DD.md`에 저장한다.
+키레네와 오늘 있었던 일을 자유롭게 얘기한 뒤 `/일기`를 입력하면 대화 내용으로 일기 초안을 만든다. 초안이 괜찮으면 `/저장`으로 저장한다.
 
-- `/일기` 또는 `/diary` — 지금까지의 대화로 일기를 생성하고 저장
+- `/일기` 또는 `/diary` — 지금까지의 대화로 일기 초안 생성
+- `/저장` 또는 `/save` — 마지막 일기 초안 저장
+- `/초안삭제` 또는 `/discard` — 마지막 일기 초안 삭제
 - `/도움말` 또는 `/help` — 명령어 목록 확인
 - `/기억` 또는 `/memory` — 저장된 장기 기억과 일기 인덱스 확인
 - `/최근` 또는 `/recent` — 최근 일기 인덱스 확인
 - `/일기검색 검색어` 또는 `/search query` — 일기 인덱스 검색
 - `/도구` 또는 `/tools` — 외부 도구 연결 상태 확인
 - `/노션검색 검색어` 또는 `/notion query` — Notion MCP 검색
+- `/노션읽기 페이지` 또는 `/notion-read page` — Notion MCP 페이지 읽기
+- `/할일추가 내용` 또는 `/todo text` — Notion MCP 할 일 추가
 - `/이름 홍길동` 또는 `/name Hong` — 사용자 이름 저장
 - `/기억추가 내용` 또는 `/remember text` — 장기 기억 메모 추가
 - `/선호추가 내용` 또는 `/prefer text` — 선호하는 응답 방식 추가
@@ -84,6 +88,8 @@ python -m unittest discover -s tests
 - `CYRENE_MCP_NOTION_URL` 분리된 Notion MCP 서버 URL
 - `CYRENE_MCP_TIMEOUT` MCP 요청 타임아웃 초
 - `CYRENE_MCP_NOTION_SEARCH_TOOL` Notion MCP 검색 도구명
+- `CYRENE_MCP_NOTION_READ_TOOL` Notion MCP 페이지 읽기 도구명
+- `CYRENE_MCP_NOTION_TODO_TOOL` Notion MCP 할 일 생성 도구명
 
 `.env.example`은 다른 작업 컴퓨터에서 사용할 설정 예시다. `.env` 파일이 있으면 앱 시작 시 자동으로 읽는다. 이미 셸에 설정된 환경변수는 `.env`보다 우선한다.
 
@@ -109,6 +115,7 @@ Discord에서는 접두어 뒤에 말을 붙인다.
 ```text
 !키레네 오늘은 코드 작업을 했어
 !키레네 /일기
+!키레네 /저장
 !키레네 /기억
 ```
 
@@ -145,6 +152,13 @@ NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 현재 코드는 `tools/call` 형태의 JSON-RPC HTTP 요청을 보내는 최소 클라이언트 틀을 제공한다. 실제 MCP 서버의 transport와 도구명은 본 작업 환경에서 맞춘다.
 
+기본 도구 정책:
+
+- Notion 읽기/검색 허용
+- Notion 생성 허용
+- Notion 수정 비활성화
+- Notion 삭제/보관 비활성화
+
 ## 메모리 파일
 
 개인 데이터 파일은 Git에 올리지 않는다.
@@ -157,4 +171,4 @@ NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 - `memory/profile.example.json`
 - `memory/diary_index.example.json`
 
-`/일기`로 저장하면 `memory/diary_index.json`에 날짜, 저장 위치, 짧은 요약이 자동으로 기록된다. 요약은 현재 모델을 추가 호출하지 않고 일기 본문 앞부분에서 만든다.
+`/저장`으로 저장하면 `memory/diary_index.json`에 날짜, 저장 위치, 짧은 요약이 자동으로 기록된다. 요약은 현재 모델을 추가 호출하지 않고 일기 본문 앞부분에서 만든다.

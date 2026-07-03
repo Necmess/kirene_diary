@@ -30,6 +30,7 @@ class HermesAgent:
         self.diary_index = diary_index or DiaryIndexMemory()
         self.diary_tool = DiaryTool(storage)
         self.tool_router = tool_router or ToolRouter()
+        self.pending_diary: str | None = None
 
     def respond(self, user_input: str) -> str:
         self.memory.add_user(user_input)
@@ -45,13 +46,33 @@ class HermesAgent:
         return self.memory.has_user_messages()
 
     def write_diary(self) -> tuple[str, str]:
+        entry = self.draft_diary()
+        return self.save_diary_draft(entry)
+
+    def draft_diary(self) -> str:
         diary_messages = self.memory.as_messages() + [
             ChatMessage(role="user", content=DIARY_INSTRUCTION)
         ]
         entry = self.llm.chat(self._system_prompt(), diary_messages)
-        location = self.diary_tool.save_today(entry)
-        self.diary_index.add_entry(date.today(), location, entry)
-        return entry, location
+        self.pending_diary = entry
+        return entry
+
+    def has_diary_draft(self) -> bool:
+        return self.pending_diary is not None
+
+    def save_diary_draft(self, entry: str | None = None) -> tuple[str, str]:
+        content = entry or self.pending_diary
+        if not content:
+            raise ValueError("저장할 일기 초안이 없습니다.")
+        location = self.diary_tool.save_today(content)
+        self.diary_index.add_entry(date.today(), location, content)
+        self.pending_diary = None
+        return content, location
+
+    def discard_diary_draft(self) -> bool:
+        had_draft = self.pending_diary is not None
+        self.pending_diary = None
+        return had_draft
 
     def memory_report(self) -> str:
         contexts = [
@@ -84,6 +105,12 @@ class HermesAgent:
 
     def search_notion(self, query: str) -> str:
         return self.tool_router.search_notion(query).message
+
+    def read_notion_page(self, page_ref: str) -> str:
+        return self.tool_router.read_notion_page(page_ref).message
+
+    def create_notion_todo(self, text: str) -> str:
+        return self.tool_router.create_notion_todo(text).message
 
     def _system_prompt(self) -> str:
         contexts = [

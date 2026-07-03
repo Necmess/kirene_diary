@@ -49,6 +49,8 @@ def build_tool_router(settings: Settings) -> ToolRouter:
         mcp_client=build_mcp_client(settings),
         notion_enabled=settings.notion_tool == "mcp",
         notion_search_tool=settings.mcp_notion_search_tool,
+        notion_read_tool=settings.mcp_notion_read_tool,
+        notion_create_todo_tool=settings.mcp_notion_todo_tool,
     )
 
 
