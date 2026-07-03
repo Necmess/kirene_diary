@@ -153,7 +153,7 @@ class DiaryIndexMemory:
         self.save(data)
 
     def recent_context(self, limit: int = 3) -> str:
-        entries = self.load()["entries"][-limit:]
+        entries = self.recent_entries(limit)
         lines = []
         for entry in entries:
             date = entry.get("date", "unknown")
@@ -180,6 +180,26 @@ class DiaryIndexMemory:
                 line += f" ({location})"
             lines.append(line)
         return "## 일기 인덱스\n" + "\n".join(lines)
+
+    def recent_entries(self, limit: int = 3) -> list[dict[str, Any]]:
+        if limit <= 0:
+            return []
+        return self.load()["entries"][-limit:]
+
+    def search(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        term = query.strip().lower()
+        if not term or limit <= 0:
+            return []
+        matches = []
+        for entry in reversed(self.load()["entries"]):
+            haystack = " ".join(
+                str(entry.get(key, "")) for key in ("date", "summary", "location")
+            ).lower()
+            if term in haystack:
+                matches.append(entry)
+            if len(matches) >= limit:
+                break
+        return matches
 
     def _excerpt(self, content: str, limit: int = 120) -> str:
         text = " ".join(line.strip() for line in content.splitlines() if line.strip())

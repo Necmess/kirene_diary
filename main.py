@@ -7,7 +7,10 @@
 
 명령어:
     /일기   지금까지의 대화로 일기를 생성하고 저장
+    /도움말   명령어 목록 확인
     /기억   저장된 장기 기억과 일기 인덱스 확인
+    /최근   최근 일기 인덱스 확인
+    /일기검색   일기 인덱스 검색
     /이름   사용자 이름 저장
     /기억추가   장기 기억 메모 추가
     /선호추가   선호하는 응답 방식 추가
@@ -16,6 +19,7 @@
 """
 
 from hermes import HermesAgent, LocalLLMClient, LocalLLMError
+from hermes.commands import HELP_TEXT, format_diary_entries, parse_command
 from hermes.config import load_settings
 from hermes.memory import DiaryIndexMemory, ProfileMemory
 from persona import GREETING
@@ -42,27 +46,17 @@ def write_diary(agent: HermesAgent) -> None:
     cyrene_says(f"오늘의 기억, 여기 남겨뒀어 → {location}\n또 만나자, 약속이다? 잊어버리면 안 돼♪")
 
 
-def handle_memory_command(agent: HermesAgent, user_input: str) -> bool:
-    commands = {
-        "/이름 ": agent.set_user_name,
-        "/name ": agent.set_user_name,
-        "/기억추가 ": agent.remember_note,
-        "/remember ": agent.remember_note,
-        "/선호추가 ": agent.remember_preference,
-        "/prefer ": agent.remember_preference,
-        "/회피추가 ": agent.remember_avoidance,
-        "/avoid ": agent.remember_avoidance,
-    }
-    for prefix, action in commands.items():
-        if user_input.startswith(prefix):
-            value = user_input[len(prefix) :].strip()
-            if not value:
-                print(f"{DIM}저장할 내용을 함께 입력해주세요.{RESET}")
-                return True
-            action(value)
-            print(f"{DIM}기억에 저장했습니다.{RESET}")
-            return True
-    return False
+def update_profile(agent: HermesAgent, action: str, value: str) -> None:
+    if action == "name":
+        agent.set_user_name(value)
+    elif action == "note":
+        agent.remember_note(value)
+    elif action == "preference":
+        agent.remember_preference(value)
+    elif action == "avoidance":
+        agent.remember_avoidance(value)
+    else:
+        raise ValueError(f"지원하지 않는 프로필 동작입니다: {action}")
 
 
 def main() -> None:
@@ -89,15 +83,45 @@ def main() -> None:
             break
         if not user_input:
             continue
-        if user_input in ("/종료", "/exit", "/quit"):
+        command = parse_command(user_input)
+        if command.kind == "exit":
             cyrene_says("이 몸은 작별을 좋아하지 않아. 차라리… 여운을 남기는 건 어떨까?")
             break
-        if user_input in ("/기억", "/memory"):
+        if command.kind == "help":
+            print("\n" + HELP_TEXT + "\n")
+            continue
+        if command.kind == "memory_report":
             print("\n" + agent.memory_report() + "\n")
             continue
-        if handle_memory_command(agent, user_input):
+        if command.kind == "recent":
+            print(
+                "\n"
+                + format_diary_entries(
+                    agent.recent_diaries(), "아직 저장된 일기 인덱스가 없습니다."
+                )
+                + "\n"
+            )
             continue
-        if user_input in ("/일기", "/diary"):
+        if command.kind == "search":
+            if not command.value:
+                print(f"{DIM}검색어를 함께 입력해주세요.{RESET}")
+                continue
+            print(
+                "\n"
+                + format_diary_entries(
+                    agent.search_diaries(command.value), "검색 결과가 없습니다."
+                )
+                + "\n"
+            )
+            continue
+        if command.kind == "profile_update":
+            if not command.value:
+                print(f"{DIM}저장할 내용을 함께 입력해주세요.{RESET}")
+                continue
+            update_profile(agent, command.profile_action, command.value)
+            print(f"{DIM}기억에 저장했습니다.{RESET}")
+            continue
+        if command.kind == "diary":
             try:
                 write_diary(agent)
             except LocalLLMError as e:
@@ -105,7 +129,7 @@ def main() -> None:
             break
 
         try:
-            reply = agent.respond(user_input)
+            reply = agent.respond(command.value)
         except LocalLLMError as e:
             print(f"{DIM}{e}{RESET}")
             continue

@@ -70,6 +70,12 @@ class HermesAgent:
     def remember_avoidance(self, avoidance: str) -> None:
         self.profile_memory.add_value("avoid", avoidance)
 
+    def recent_diaries(self, limit: int = 3) -> list[dict]:
+        return self.diary_index.recent_entries(limit)
+
+    def search_diaries(self, query: str, limit: int = 5) -> list[dict]:
+        return self.diary_index.search(query, limit)
+
     def _system_prompt(self) -> str:
         contexts = [
             self.profile_memory.render_context(),

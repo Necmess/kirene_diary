@@ -1,9 +1,11 @@
+from datetime import date
 import tempfile
 import unittest
 from unittest import mock
 from pathlib import Path
 
 from hermes import HermesAgent
+from hermes.commands import format_diary_entries, parse_command
 from hermes.config import load_dotenv, load_settings
 from hermes.memory import DiaryIndexMemory, ProfileMemory
 from storage import LocalMarkdownStorage
@@ -58,6 +60,24 @@ class HermesAgentTest(unittest.TestCase):
             self.assertIn("코드 작업", data["entries"][0]["summary"])
             self.assertIn("일기 인덱스", agent.memory_report())
 
+    def test_recent_and_search_diaries(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            index = DiaryIndexMemory(Path(directory) / "index.json")
+            index.add_entry(date(2026, 7, 1), "diary/2026-07-01.md", "산책을 했다.")
+            index.add_entry(date(2026, 7, 2), "diary/2026-07-02.md", "코드 작업을 했다.")
+            agent = HermesAgent(
+                FakeLLM(),
+                LocalMarkdownStorage(Path(directory) / "diary"),
+                profile_memory=ProfileMemory(Path(directory) / "profile.json"),
+                diary_index=index,
+            )
+
+            recent = agent.recent_diaries(limit=1)
+            matches = agent.search_diaries("코드")
+
+            self.assertEqual(recent[0]["date"], "2026-07-02")
+            self.assertEqual(matches[0]["date"], "2026-07-02")
+
     def test_manual_profile_updates(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             profile = ProfileMemory(Path(directory) / "profile.json")
@@ -96,6 +116,34 @@ class ConfigTest(unittest.TestCase):
 
             self.assertEqual(settings.model, "from-env")
             self.assertEqual(settings.max_tokens, 512)
+
+
+class CommandTest(unittest.TestCase):
+    def test_parse_builtin_commands(self) -> None:
+        self.assertEqual(parse_command("/help").kind, "help")
+        self.assertEqual(parse_command("/최근").kind, "recent")
+        self.assertEqual(parse_command("/일기").kind, "diary")
+        self.assertEqual(parse_command("/종료").kind, "exit")
+
+    def test_parse_profile_and_search_commands(self) -> None:
+        profile = parse_command("/선호추가 짧게 답하기")
+        search = parse_command("/search 코드")
+
+        self.assertEqual(profile.kind, "profile_update")
+        self.assertEqual(profile.profile_action, "preference")
+        self.assertEqual(profile.value, "짧게 답하기")
+        self.assertEqual(search.kind, "search")
+        self.assertEqual(search.value, "코드")
+
+    def test_format_diary_entries(self) -> None:
+        text = format_diary_entries(
+            [{"date": "2026-07-02", "summary": "코드 작업", "location": "a.md"}],
+            "empty",
+        )
+
+        self.assertIn("2026-07-02", text)
+        self.assertIn("코드 작업", text)
+        self.assertEqual(format_diary_entries([], "empty"), "empty")
 
 
 if __name__ == "__main__":
