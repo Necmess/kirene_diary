@@ -10,6 +10,13 @@ ollama pull gemma3:4b
 python main.py
 ```
 
+Discord로 실행하려면 `discord.py`가 필요하다.
+
+```bash
+pip install -r requirements-discord.txt
+python discord_bot.py
+```
+
 ## 테스트
 
 로컬 모델 없이 코드 구조만 검증한다.
@@ -35,13 +42,18 @@ python -m unittest discover -s tests
 
 ## 구조
 
-- `main.py` — CLI 입출력과 명령 처리
+- `main.py` — CLI 입출력
+- `discord_bot.py` — Discord 봇 실행 진입점
 - `hermes/agent.py` — Hermes 오케스트레이터. 페르소나, 메모리, 모델, 도구를 조율
+- `hermes/app.py` — CLI/Discord가 공유하는 에이전트·저장소 팩토리
+- `hermes/commands.py` — `/일기`, `/기억`, `/검색` 같은 명령 파싱
+- `hermes/config.py` — `.env`와 환경변수 기반 설정
+- `hermes/discord_app.py` — Discord 메시지 어댑터
 - `hermes/llm.py` — 로컬 LLM 클라이언트. 기본값은 Ollama chat API
 - `hermes/memory.py` — 현재 세션 대화 메모리
 - `hermes/tools.py` — 에이전트가 사용하는 도구. 현재는 일기 저장 도구
 - `persona.py` — 키레네 시스템 프롬프트·일기 지시문
-- `storage.py` — 저장소 추상화. `LocalMarkdownStorage`(현재) / `NotionStorage`(스텁)
+- `storage.py` — 저장소 추상화. `LocalMarkdownStorage` / `NotionStorage`
 
 ## Hermes 구조
 
@@ -53,22 +65,46 @@ python -m unittest discover -s tests
 - Tools: 파일 저장, 추후 Notion 같은 외부 작업
 - Orchestrator: 입력을 받아 메모리에 넣고, 모델 응답을 만들고, 필요한 도구를 호출
 
-## Notion 연동 (나중에)
-
-`storage.py`의 `NotionStorage` docstring에 구현 가이드가 있다. 구현 후 `main.py`에서 한 줄만 바꾸면 된다:
-
-```python
-storage = NotionStorage(token=os.environ["NOTION_TOKEN"], database_id=os.environ["NOTION_DATABASE_ID"])
-```
-
 ## 설정
 
 - `CYRENE_MODEL` 환경변수로 모델 변경 가능 (기본: `gemma3:4b`)
 - `CYRENE_LLM_URL` 환경변수로 Ollama 호환 chat API 주소 변경 가능
 - `CYRENE_MAX_TOKENS` 환경변수로 응답 길이 변경 가능 (기본: `1024`)
 - `CYRENE_MEMORY_DIR` 환경변수로 장기 메모리 디렉터리 변경 가능 (기본: `memory`)
+- `CYRENE_STORAGE` 저장소 선택. `local` 또는 `notion` (기본: `local`)
+- `CYRENE_DIARY_DIR` 로컬 일기 저장 디렉터리 (기본: `diary`)
+- `NOTION_TOKEN`, `NOTION_DATABASE_ID` Notion 저장소 사용 시 필요
+- `DISCORD_BOT_TOKEN` Discord 봇 실행 시 필요
+- `DISCORD_COMMAND_PREFIX` Discord에서 봇을 부를 접두어 (기본: `!키레네`)
 
 `.env.example`은 다른 작업 컴퓨터에서 사용할 설정 예시다. `.env` 파일이 있으면 앱 시작 시 자동으로 읽는다. 이미 셸에 설정된 환경변수는 `.env`보다 우선한다.
+
+## Notion 연동
+
+Notion 데이터베이스에는 최소한 아래 속성이 필요하다.
+
+- `Name` — title
+- `Date` — date
+
+`.env`에서 저장소를 바꾼다.
+
+```env
+CYRENE_STORAGE=notion
+NOTION_TOKEN=secret_xxx
+NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## Discord 사용
+
+Discord에서는 접두어 뒤에 말을 붙인다.
+
+```text
+!키레네 오늘은 코드 작업을 했어
+!키레네 /일기
+!키레네 /기억
+```
+
+봇 멘션으로도 호출할 수 있다.
 
 ## 메모리 파일
 

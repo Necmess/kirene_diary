@@ -5,10 +5,16 @@ from unittest import mock
 from pathlib import Path
 
 from hermes import HermesAgent
+from hermes.app import build_agent, build_storage
 from hermes.commands import format_diary_entries, parse_command
 from hermes.config import ConfigError, load_dotenv, load_settings
+from hermes.discord_app import (
+    DiscordSessionRegistry,
+    clip_discord_message,
+    extract_command_text,
+)
 from hermes.memory import DiaryIndexMemory, ProfileMemory
-from storage import LocalMarkdownStorage
+from storage import LocalMarkdownStorage, NotionStorage
 
 
 class FakeLLM:
@@ -126,6 +132,35 @@ class ConfigTest(unittest.TestCase):
             with self.assertRaises(ConfigError):
                 load_settings()
 
+    def test_notion_storage_requires_credentials(self) -> None:
+        with mock.patch.dict("os.environ", {"CYRENE_STORAGE": "notion"}, clear=True):
+            with self.assertRaises(ConfigError):
+                load_settings()
+
+    def test_notion_settings_load_when_credentials_exist(self) -> None:
+        env = {
+            "CYRENE_STORAGE": "notion",
+            "NOTION_TOKEN": "secret",
+            "NOTION_DATABASE_ID": "db",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            settings = load_settings()
+
+        self.assertEqual(settings.storage, "notion")
+        self.assertEqual(settings.notion_token, "secret")
+        self.assertEqual(settings.notion_database_id, "db")
+
+    def test_discord_settings_load(self) -> None:
+        env = {
+            "DISCORD_BOT_TOKEN": "token",
+            "DISCORD_COMMAND_PREFIX": "!cyrene",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            settings = load_settings()
+
+        self.assertEqual(settings.discord_bot_token, "token")
+        self.assertEqual(settings.discord_command_prefix, "!cyrene")
+
 
 class CommandTest(unittest.TestCase):
     def test_parse_builtin_commands(self) -> None:
@@ -153,6 +188,85 @@ class CommandTest(unittest.TestCase):
         self.assertIn("2026-07-02", text)
         self.assertIn("코드 작업", text)
         self.assertEqual(format_diary_entries([], "empty"), "empty")
+
+
+class NotionStorageTest(unittest.TestCase):
+    def test_build_page_payload_uses_minimum_database_schema(self) -> None:
+        storage = NotionStorage(token="secret", database_id="db")
+
+        payload = storage._build_page_payload(
+            date(2026, 7, 3),
+            "첫 문단\n\n둘째 문단",
+        )
+
+        self.assertEqual(payload["parent"]["database_id"], "db")
+        self.assertIn("Name", payload["properties"])
+        self.assertEqual(payload["properties"]["Date"]["date"]["start"], "2026-07-03")
+        self.assertEqual(len(payload["children"]), 2)
+        self.assertEqual(
+            payload["children"][0]["paragraph"]["rich_text"][0]["text"]["content"],
+            "첫 문단",
+        )
+
+    def test_content_blocks_are_chunked(self) -> None:
+        storage = NotionStorage(token="secret", database_id="db")
+
+        blocks = storage._content_to_blocks("a" * 1900)
+
+        self.assertEqual(len(blocks), 2)
+        self.assertEqual(
+            len(blocks[0]["paragraph"]["rich_text"][0]["text"]["content"]),
+            1800,
+        )
+
+
+class AppFactoryTest(unittest.TestCase):
+    def test_build_storage_uses_local_by_default(self) -> None:
+        with mock.patch.dict("os.environ", {}, clear=True):
+            settings = load_settings()
+
+        self.assertIsInstance(build_storage(settings), LocalMarkdownStorage)
+
+    def test_build_agent_scopes_memory_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.dict("os.environ", {"CYRENE_MEMORY_DIR": directory}, clear=True):
+                settings = load_settings()
+            agent = build_agent(settings, memory_scope="discord:123")
+
+            self.assertIn("discord_123", str(agent.profile_memory.path))
+
+
+class DiscordAdapterTest(unittest.TestCase):
+    def test_extract_command_text_from_prefix_or_mention(self) -> None:
+        self.assertEqual(
+            extract_command_text("!키레네 안녕", prefix="!키레네", bot_user_id="123"),
+            "안녕",
+        )
+        self.assertEqual(
+            extract_command_text("<@123> /일기", prefix="!키레네", bot_user_id="123"),
+            "/일기",
+        )
+        self.assertIsNone(
+            extract_command_text("그냥 대화", prefix="!키레네", bot_user_id="123")
+        )
+
+    def test_clip_discord_message(self) -> None:
+        self.assertEqual(clip_discord_message("abc", limit=10), "abc")
+        self.assertEqual(len(clip_discord_message("a" * 20, limit=10)), 10)
+
+    def test_session_registry_reuses_agent_per_scope(self) -> None:
+        created = []
+
+        def factory(scope):
+            created.append(scope)
+            return object()
+
+        registry = DiscordSessionRegistry(factory)
+        first = registry.get("1")
+        second = registry.get("1")
+
+        self.assertIs(first, second)
+        self.assertEqual(created, ["discord_1"])
 
 
 if __name__ == "__main__":

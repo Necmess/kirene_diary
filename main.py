@@ -18,12 +18,11 @@
     /종료   저장 없이 종료
 """
 
-from hermes import HermesAgent, LocalLLMClient, LocalLLMError
+from hermes import HermesAgent, LocalLLMError
+from hermes.app import build_agent
 from hermes.commands import HELP_TEXT, format_diary_entries, parse_command
 from hermes.config import ConfigError, load_settings
-from hermes.memory import DiaryIndexMemory, ProfileMemory
 from persona import GREETING
-from storage import LocalMarkdownStorage
 
 PINK = "\033[95m"
 DIM = "\033[2m"
@@ -65,17 +64,7 @@ def main() -> None:
     except ConfigError as e:
         print(f"{DIM}설정 오류: {e}{RESET}")
         return
-    llm = LocalLLMClient(
-        model=settings.model,
-        url=settings.llm_url,
-        max_tokens=settings.max_tokens,
-    )
-    agent = HermesAgent(
-        llm=llm,
-        storage=LocalMarkdownStorage(),
-        profile_memory=ProfileMemory(f"{settings.memory_dir}/profile.json"),
-        diary_index=DiaryIndexMemory(f"{settings.memory_dir}/diary_index.json"),
-    )
+    agent = build_agent(settings)
 
     cyrene_says(GREETING)
 
