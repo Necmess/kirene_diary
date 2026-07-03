@@ -2,6 +2,13 @@
 
 from .agent import HermesAgent
 from .llm import LocalLLMClient, LocalLLMError
-from .memory import ConversationMemory
+from .memory import ConversationMemory, DiaryIndexMemory, ProfileMemory
 
-__all__ = ["ConversationMemory", "HermesAgent", "LocalLLMClient", "LocalLLMError"]
+__all__ = [
+    "ConversationMemory",
+    "DiaryIndexMemory",
+    "HermesAgent",
+    "LocalLLMClient",
+    "LocalLLMError",
+    "ProfileMemory",
+]

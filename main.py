@@ -13,12 +13,14 @@
 import os
 
 from hermes import HermesAgent, LocalLLMClient, LocalLLMError
+from hermes.memory import DiaryIndexMemory, ProfileMemory
 from persona import GREETING
 from storage import LocalMarkdownStorage
 
 MODEL = os.environ.get("CYRENE_MODEL", "gemma3:4b")
 LLM_URL = os.environ.get("CYRENE_LLM_URL", "http://localhost:11434/api/chat")
 MAX_TOKENS = int(os.environ.get("CYRENE_MAX_TOKENS", "1024"))
+MEMORY_DIR = os.environ.get("CYRENE_MEMORY_DIR", "memory")
 
 PINK = "\033[95m"
 DIM = "\033[2m"
@@ -43,7 +45,12 @@ def write_diary(agent: HermesAgent) -> None:
 
 def main() -> None:
     llm = LocalLLMClient(model=MODEL, url=LLM_URL, max_tokens=MAX_TOKENS)
-    agent = HermesAgent(llm=llm, storage=LocalMarkdownStorage())
+    agent = HermesAgent(
+        llm=llm,
+        storage=LocalMarkdownStorage(),
+        profile_memory=ProfileMemory(f"{MEMORY_DIR}/profile.json"),
+        diary_index=DiaryIndexMemory(f"{MEMORY_DIR}/diary_index.json"),
+    )
 
     cyrene_says(GREETING)
 

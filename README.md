@@ -47,3 +47,18 @@ storage = NotionStorage(token=os.environ["NOTION_TOKEN"], database_id=os.environ
 - `CYRENE_MODEL` 환경변수로 모델 변경 가능 (기본: `gemma3:4b`)
 - `CYRENE_LLM_URL` 환경변수로 Ollama 호환 chat API 주소 변경 가능
 - `CYRENE_MAX_TOKENS` 환경변수로 응답 길이 변경 가능 (기본: `1024`)
+- `CYRENE_MEMORY_DIR` 환경변수로 장기 메모리 디렉터리 변경 가능 (기본: `memory`)
+
+`.env.example`은 다른 작업 컴퓨터에서 사용할 설정 예시다. 현재 앱은 `.env`를 자동 로드하지 않으므로 필요한 값은 셸에서 export하거나 실행 환경에서 주입한다.
+
+## 메모리 파일
+
+개인 데이터 파일은 Git에 올리지 않는다.
+
+- `memory/profile.json` — 사용자 프로필 장기 기억
+- `memory/diary_index.json` — 과거 일기 요약 인덱스
+
+저장소에는 구조 참고용 예시만 포함한다.
+
+- `memory/profile.example.json`
+- `memory/diary_index.example.json`

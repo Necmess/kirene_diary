@@ -3,3 +3,5 @@ __pycache__/
 .DS_Store
 .env
 diary/
+memory/profile.json
+memory/diary_index.json
