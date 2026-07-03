@@ -8,6 +8,7 @@ from storage import DiaryStorage
 from .llm import LocalLLMClient
 from .memory import ConversationMemory, DiaryIndexMemory, ProfileMemory
 from .messages import ChatMessage
+from .safety import SAFETY_COVENANT, SafetyGuard
 from .tools import DiaryTool
 from .tool_router import ToolRouter
 
@@ -23,6 +24,7 @@ class HermesAgent:
         profile_memory: ProfileMemory | None = None,
         diary_index: DiaryIndexMemory | None = None,
         tool_router: ToolRouter | None = None,
+        safety_guard: SafetyGuard | None = None,
     ) -> None:
         self.llm = llm
         self.memory = memory or ConversationMemory()
@@ -30,9 +32,15 @@ class HermesAgent:
         self.diary_index = diary_index or DiaryIndexMemory()
         self.diary_tool = DiaryTool(storage)
         self.tool_router = tool_router or ToolRouter()
+        self.safety_guard = safety_guard or SafetyGuard()
         self.pending_diary: str | None = None
 
     def respond(self, user_input: str) -> str:
+        safety = self.safety_guard.evaluate(user_input)
+        if safety.blocked:
+            self.memory.add_user(user_input)
+            self.memory.add_assistant(safety.response)
+            return safety.response
         self.memory.add_user(user_input)
         try:
             reply = self.llm.chat(self._system_prompt(), self.memory.as_messages())
@@ -119,5 +127,5 @@ class HermesAgent:
         ]
         memory_context = "\n\n".join(context for context in contexts if context)
         if not memory_context:
-            return CYRENE_SYSTEM_PROMPT
-        return f"{CYRENE_SYSTEM_PROMPT}\n\n{memory_context}"
+            return f"{SAFETY_COVENANT}\n\n{CYRENE_SYSTEM_PROMPT}"
+        return f"{SAFETY_COVENANT}\n\n{CYRENE_SYSTEM_PROMPT}\n\n{memory_context}"

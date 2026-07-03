@@ -3,6 +3,7 @@
 from .agent import HermesAgent
 from .llm import LocalLLMClient, LocalLLMError
 from .memory import ConversationMemory, DiaryIndexMemory, ProfileMemory
+from .safety import SafetyGuard
 
 __all__ = [
     "ConversationMemory",
@@ -11,4 +12,5 @@ __all__ = [
     "LocalLLMClient",
     "LocalLLMError",
     "ProfileMemory",
+    "SafetyGuard",
 ]

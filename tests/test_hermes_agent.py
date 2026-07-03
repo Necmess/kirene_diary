@@ -17,6 +17,7 @@ from hermes.discord_app import (
 )
 from hermes.mcp_client import DisabledMcpClient, McpClientError
 from hermes.memory import DiaryIndexMemory, ProfileMemory
+from hermes.safety import SAFETY_COVENANT
 from hermes.tool_router import ToolPolicy, ToolRouter
 from storage import LocalMarkdownStorage, NotionStorage
 
@@ -32,6 +33,21 @@ class FakeLLM:
 
 
 class HermesAgentTest(unittest.TestCase):
+    def test_system_prompt_includes_safety_covenant(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            llm = FakeLLM()
+            agent = HermesAgent(
+                llm,
+                LocalMarkdownStorage(Path(directory) / "diary"),
+                profile_memory=ProfileMemory(Path(directory) / "profile.json"),
+                diary_index=DiaryIndexMemory(Path(directory) / "index.json"),
+            )
+
+            agent.respond("안녕")
+
+            self.assertIn("안전 조약", llm.calls[0][0])
+            self.assertIn(SAFETY_COVENANT.splitlines()[0], llm.calls[0][0])
+
     def test_respond_injects_profile_memory(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             profile = ProfileMemory(Path(directory) / "profile.json")
@@ -49,6 +65,22 @@ class HermesAgentTest(unittest.TestCase):
             self.assertEqual(reply, "오늘은 코드 작업을 했다.")
             self.assertIn("사용자에 대한 장기 기억", llm.calls[0][0])
             self.assertIn("테스트", llm.calls[0][0])
+
+    def test_self_harm_message_uses_crisis_response_without_llm_call(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            llm = FakeLLM()
+            agent = HermesAgent(
+                llm,
+                LocalMarkdownStorage(Path(directory) / "diary"),
+                profile_memory=ProfileMemory(Path(directory) / "profile.json"),
+                diary_index=DiaryIndexMemory(Path(directory) / "index.json"),
+            )
+
+            reply = agent.respond("나 자살하고 싶어")
+
+            self.assertIn("988", reply)
+            self.assertIn("109", reply)
+            self.assertEqual(llm.calls, [])
 
     def test_write_diary_updates_index(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
