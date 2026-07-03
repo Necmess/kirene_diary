@@ -24,6 +24,7 @@ class Settings:
     mcp_notion_search_tool: str = "notion_search"
     mcp_notion_read_tool: str = "notion_read_page"
     mcp_notion_todo_tool: str = "notion_create_todo"
+    safety_region: str = "GLOBAL"
 
 
 class ConfigError(ValueError):
@@ -94,6 +95,7 @@ def load_settings() -> Settings:
         mcp_notion_todo_tool=os.environ.get(
             "CYRENE_MCP_NOTION_TODO_TOOL", Settings.mcp_notion_todo_tool
         ),
+        safety_region=os.environ.get("CYRENE_SAFETY_REGION", Settings.safety_region),
     )
     if settings.storage == "notion":
         _required(settings.notion_token, "NOTION_TOKEN")

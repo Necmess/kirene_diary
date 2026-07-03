@@ -23,6 +23,9 @@ class ConversationMemory:
     def pop_last(self) -> ChatMessage | None:
         return self._messages.pop() if self._messages else None
 
+    def clear(self) -> None:
+        self._messages.clear()
+
     def has_user_messages(self) -> bool:
         return any(message.role == "user" for message in self._messages)
 

@@ -40,10 +40,13 @@ python -m unittest discover -s tests
 - `/노션검색 검색어` 또는 `/notion query` — Notion MCP 검색
 - `/노션읽기 페이지` 또는 `/notion-read page` — Notion MCP 페이지 읽기
 - `/할일추가 내용` 또는 `/todo text` — Notion MCP 할 일 추가
+- `/확인` 또는 `/confirm` — 대기 중인 외부 쓰기 작업 실행
+- `/취소` 또는 `/cancel` — 대기 중인 외부 쓰기 작업 취소
 - `/이름 홍길동` 또는 `/name Hong` — 사용자 이름 저장
 - `/기억추가 내용` 또는 `/remember text` — 장기 기억 메모 추가
 - `/선호추가 내용` 또는 `/prefer text` — 선호하는 응답 방식 추가
 - `/회피추가 내용` 또는 `/avoid text` — 피해야 할 응답 방식 추가
+- `/세션초기화` 또는 `/reset` — 현재 대화 세션 초기화
 - `/종료`, `/exit`, `/quit` — 저장 없이 종료
 
 ## 구조
@@ -90,6 +93,7 @@ python -m unittest discover -s tests
 - `CYRENE_LLM_URL` 환경변수로 Ollama 호환 chat API 주소 변경 가능
 - `CYRENE_MAX_TOKENS` 환경변수로 응답 길이 변경 가능 (기본: `1024`)
 - `CYRENE_MEMORY_DIR` 환경변수로 장기 메모리 디렉터리 변경 가능 (기본: `memory`)
+- `CYRENE_SAFETY_REGION` 위기 지원 지역 문구. `KR`, `US`, `GLOBAL` (기본: `GLOBAL`)
 - `CYRENE_STORAGE` 저장소 선택. `local` 또는 `notion` (기본: `local`)
 - `CYRENE_DIARY_DIR` 로컬 일기 저장 디렉터리 (기본: `diary`)
 - `NOTION_TOKEN`, `NOTION_DATABASE_ID` Notion 저장소 사용 시 필요
@@ -128,6 +132,8 @@ Discord에서는 접두어 뒤에 말을 붙인다.
 !키레네 /일기
 !키레네 /저장
 !키레네 /기억
+!키레네 /할일추가 내일 MCP 연결 확인
+!키레네 /확인
 ```
 
 봇 멘션으로도 호출할 수 있다.
@@ -169,6 +175,8 @@ NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 - Notion 생성 허용
 - Notion 수정 비활성화
 - Notion 삭제/보관 비활성화
+
+실제 연결 절차는 `RUNBOOK.md`를 따른다.
 
 ## 메모리 파일
 

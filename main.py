@@ -92,6 +92,16 @@ def main() -> None:
         if command.kind == "exit":
             cyrene_says("이 몸은 작별을 좋아하지 않아. 차라리… 여운을 남기는 건 어떨까?")
             break
+        if command.kind == "reset_session":
+            agent.reset_session()
+            cyrene_says("현재 대화 세션을 비웠어. 장기 기억과 저장된 일기는 그대로야♪")
+            continue
+        if command.kind == "confirm":
+            print("\n" + agent.confirm_pending_action() + "\n")
+            continue
+        if command.kind == "cancel":
+            print("\n" + agent.cancel_pending_action() + "\n")
+            continue
         if command.kind == "help":
             print("\n" + HELP_TEXT + "\n")
             continue
@@ -129,7 +139,7 @@ def main() -> None:
             print("\n" + agent.read_notion_page(command.value) + "\n")
             continue
         if command.kind == "notion_todo":
-            print("\n" + agent.create_notion_todo(command.value) + "\n")
+            print("\n" + agent.stage_notion_todo(command.value) + "\n")
             continue
         if command.kind == "profile_update":
             if not command.value:

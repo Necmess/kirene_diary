@@ -6,7 +6,7 @@ from pathlib import Path
 
 from hermes import HermesAgent
 from hermes.app import build_agent, build_storage
-from hermes.commands import format_diary_entries, parse_command
+from hermes.commands import HELP_TEXT, format_diary_entries, parse_command
 from hermes.config import ConfigError, load_dotenv, load_settings
 from hermes.discord_app import (
     DiscordSessionRegistry,
@@ -17,7 +17,7 @@ from hermes.discord_app import (
 )
 from hermes.mcp_client import DisabledMcpClient, McpClientError
 from hermes.memory import DiaryIndexMemory, ProfileMemory
-from hermes.safety import SAFETY_COVENANT
+from hermes.safety import SAFETY_COVENANT, SafetyGuard, SafetyLevel
 from hermes.tool_router import ToolPolicy, ToolRouter
 from storage import LocalMarkdownStorage, NotionStorage
 
@@ -80,6 +80,38 @@ class HermesAgentTest(unittest.TestCase):
 
             self.assertIn("988", reply)
             self.assertIn("109", reply)
+            self.assertEqual(llm.calls, [])
+
+    def test_safety_region_changes_crisis_resources(self) -> None:
+        kr = SafetyGuard(region="KR").evaluate("자살 생각이 있어")
+        us = SafetyGuard(region="US").evaluate("suicide")
+
+        self.assertEqual(kr.level, SafetyLevel.CRISIS)
+        self.assertIn("109", kr.response)
+        self.assertNotIn("988", kr.response)
+        self.assertIn("988", us.response)
+
+    def test_safety_levels_distinguish_distress_and_ideation(self) -> None:
+        distress = SafetyGuard().evaluate("너무 힘들어서 다 포기하고 싶어")
+        ideation = SafetyGuard().evaluate("죽고 싶어")
+
+        self.assertEqual(distress.level, SafetyLevel.EMOTIONAL_DISTRESS)
+        self.assertEqual(ideation.level, SafetyLevel.SELF_HARM_IDEATION)
+
+    def test_diary_draft_refuses_to_record_self_harm_details(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            llm = FakeLLM("이 응답은 호출되면 안 됨")
+            agent = HermesAgent(
+                llm,
+                LocalMarkdownStorage(Path(directory) / "diary"),
+                profile_memory=ProfileMemory(Path(directory) / "profile.json"),
+                diary_index=DiaryIndexMemory(Path(directory) / "index.json"),
+            )
+
+            agent.respond("나 자살하고 싶어")
+            draft = agent.draft_diary()
+
+            self.assertIn("안전을 먼저", draft)
             self.assertEqual(llm.calls, [])
 
     def test_write_diary_updates_index(self) -> None:
@@ -242,6 +274,12 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.mcp_notion_read_tool, "notion_read_page")
         self.assertEqual(settings.mcp_notion_todo_tool, "notion_create_todo")
 
+    def test_safety_region_setting_loads(self) -> None:
+        with mock.patch.dict("os.environ", {"CYRENE_SAFETY_REGION": "KR"}, clear=True):
+            settings = load_settings()
+
+        self.assertEqual(settings.safety_region, "KR")
+
 
 class CommandTest(unittest.TestCase):
     def test_parse_builtin_commands(self) -> None:
@@ -250,8 +288,12 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(parse_command("/일기").kind, "diary")
         self.assertEqual(parse_command("/저장").kind, "save_diary")
         self.assertEqual(parse_command("/초안삭제").kind, "discard_diary")
+        self.assertEqual(parse_command("/확인").kind, "confirm")
+        self.assertEqual(parse_command("/취소").kind, "cancel")
+        self.assertEqual(parse_command("/세션초기화").kind, "reset_session")
         self.assertEqual(parse_command("/종료").kind, "exit")
         self.assertEqual(parse_command("/도구").kind, "tool_status")
+        self.assertIn("[일기]", HELP_TEXT)
 
     def test_parse_profile_and_search_commands(self) -> None:
         profile = parse_command("/선호추가 짧게 답하기")
@@ -396,6 +438,21 @@ class DiscordAdapterTest(unittest.TestCase):
             self.assertIn("저장 위치", save_response)
             self.assertEqual(len(index.load()["entries"]), 1)
 
+    def test_handle_discord_reset_session(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            agent = HermesAgent(
+                FakeLLM(),
+                LocalMarkdownStorage(Path(directory) / "diary"),
+                profile_memory=ProfileMemory(Path(directory) / "profile.json"),
+                diary_index=DiaryIndexMemory(Path(directory) / "index.json"),
+            )
+            handle_discord_text(agent, "오늘 테스트했어")
+
+            response = handle_discord_text(agent, "/세션초기화")
+
+            self.assertIn("세션을 비웠어", response)
+            self.assertFalse(agent.can_write_diary())
+
 
 class ToolRouterTest(unittest.TestCase):
     def test_disabled_mcp_client_raises(self) -> None:
@@ -455,6 +512,37 @@ class ToolRouterTest(unittest.TestCase):
             client.calls,
             [("read", {"page": "page"}), ("todo", {"text": "task"})],
         )
+
+    def test_agent_stages_and_confirms_notion_todo(self) -> None:
+        class FakeMcp:
+            def __init__(self):
+                self.calls = []
+
+            def call_tool(self, name, arguments):
+                self.calls.append((name, arguments))
+                return {"content": [{"text": "created"}]}
+
+        client = FakeMcp()
+        router = ToolRouter(
+            mcp_client=client,
+            notion_enabled=True,
+            notion_create_todo_tool="todo",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            agent = HermesAgent(
+                FakeLLM(),
+                LocalMarkdownStorage(Path(directory) / "diary"),
+                profile_memory=ProfileMemory(Path(directory) / "profile.json"),
+                diary_index=DiaryIndexMemory(Path(directory) / "index.json"),
+                tool_router=router,
+            )
+
+            staged = agent.stage_notion_todo("테스트")
+            confirmed = agent.confirm_pending_action()
+
+            self.assertIn("/확인", staged)
+            self.assertEqual(confirmed, "created")
+            self.assertEqual(client.calls, [("todo", {"text": "테스트"})])
 
     def test_policy_blocks_read_or_create(self) -> None:
         router = ToolRouter(

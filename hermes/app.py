@@ -9,6 +9,7 @@ from .config import Settings
 from .llm import LocalLLMClient
 from .memory import DiaryIndexMemory, ProfileMemory
 from .mcp_client import DisabledMcpClient, HttpMcpClient, McpClient
+from .safety import SafetyGuard
 from .tool_router import ToolRouter
 
 
@@ -35,6 +36,7 @@ def build_agent(settings: Settings, memory_scope: str = "") -> HermesAgent:
         profile_memory=ProfileMemory(memory_dir / "profile.json"),
         diary_index=DiaryIndexMemory(memory_dir / "diary_index.json"),
         tool_router=build_tool_router(settings),
+        safety_guard=SafetyGuard(region=settings.safety_region),
     )
 
 

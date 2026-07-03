@@ -8,6 +8,7 @@ from storage import DiaryStorage
 from .llm import LocalLLMClient
 from .memory import ConversationMemory, DiaryIndexMemory, ProfileMemory
 from .messages import ChatMessage
+from .pending import PendingAction
 from .safety import SAFETY_COVENANT, SafetyGuard
 from .tools import DiaryTool
 from .tool_router import ToolRouter
@@ -34,6 +35,7 @@ class HermesAgent:
         self.tool_router = tool_router or ToolRouter()
         self.safety_guard = safety_guard or SafetyGuard()
         self.pending_diary: str | None = None
+        self.pending_action: PendingAction | None = None
 
     def respond(self, user_input: str) -> str:
         safety = self.safety_guard.evaluate(user_input)
@@ -53,11 +55,24 @@ class HermesAgent:
     def can_write_diary(self) -> bool:
         return self.memory.has_user_messages()
 
+    def reset_session(self) -> None:
+        self.memory.clear()
+        self.pending_diary = None
+        self.pending_action = None
+
     def write_diary(self) -> tuple[str, str]:
         entry = self.draft_diary()
         return self.save_diary_draft(entry)
 
     def draft_diary(self) -> str:
+        for message in self.memory.as_messages():
+            if message.role == "user" and self.safety_guard.evaluate(message.content).blocked:
+                self.pending_diary = None
+                return (
+                    "오늘의 기록을 쓰기 전에 안전을 먼저 챙기고 싶어. "
+                    "자해 방법이나 실행 세부사항은 일기에 남기지 않을게. "
+                    "지금 당장 위험하다면 주변 사람이나 긴급 도움에 먼저 연결해줘."
+                )
         diary_messages = self.memory.as_messages() + [
             ChatMessage(role="user", content=DIARY_INSTRUCTION)
         ]
@@ -119,6 +134,28 @@ class HermesAgent:
 
     def create_notion_todo(self, text: str) -> str:
         return self.tool_router.create_notion_todo(text).message
+
+    def stage_notion_todo(self, text: str) -> str:
+        cleaned = text.strip()
+        if not cleaned:
+            return "추가할 할 일을 입력해주세요."
+        self.pending_action = PendingAction(kind="notion_todo", value=cleaned)
+        return f"Notion 할 일로 추가할까?\n- {cleaned}\n확인하려면 /확인, 취소하려면 /취소 라고 말해줘."
+
+    def confirm_pending_action(self) -> str:
+        if self.pending_action is None:
+            return "확인할 작업이 없어."
+        action = self.pending_action
+        self.pending_action = None
+        if action.kind == "notion_todo":
+            return self.create_notion_todo(action.value)
+        return "지원하지 않는 작업이야."
+
+    def cancel_pending_action(self) -> str:
+        if self.pending_action is None:
+            return "취소할 작업이 없어."
+        self.pending_action = None
+        return "대기 중인 작업을 취소했어."
 
     def _system_prompt(self) -> str:
         contexts = [

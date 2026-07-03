@@ -65,6 +65,13 @@ def handle_discord_text(agent: HermesAgent, text: str) -> str:
     command = parse_command(text)
     if command.kind == "exit":
         return "Discord에서는 세션을 계속 열어둘게. 필요하면 다시 불러줘♪"
+    if command.kind == "reset_session":
+        agent.reset_session()
+        return "현재 대화 세션을 비웠어. 장기 기억과 저장된 일기는 그대로야♪"
+    if command.kind == "confirm":
+        return agent.confirm_pending_action()
+    if command.kind == "cancel":
+        return agent.cancel_pending_action()
     if command.kind == "help":
         return HELP_TEXT
     if command.kind == "memory_report":
@@ -84,7 +91,7 @@ def handle_discord_text(agent: HermesAgent, text: str) -> str:
     if command.kind == "notion_read":
         return agent.read_notion_page(command.value)
     if command.kind == "notion_todo":
-        return agent.create_notion_todo(command.value)
+        return agent.stage_notion_todo(command.value)
     if command.kind == "profile_update":
         if not command.value:
             return "저장할 내용을 함께 입력해줘."
@@ -144,6 +151,8 @@ def discord_memory_scope(guild_id: str, user_id: str) -> str:
 
 
 def clip_discord_message(text: str, limit: int = 1900) -> str:
+    if "긴급" in text or "988" in text or "109" in text:
+        limit = max(limit, 1900)
     if len(text) <= limit:
         return text
     return text[: limit - 1].rstrip() + "…"
