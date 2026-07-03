@@ -8,6 +8,8 @@ from .agent import HermesAgent
 from .config import Settings
 from .llm import LocalLLMClient
 from .memory import DiaryIndexMemory, ProfileMemory
+from .mcp_client import DisabledMcpClient, HttpMcpClient, McpClient
+from .tool_router import ToolRouter
 
 
 def build_storage(settings: Settings) -> DiaryStorage:
@@ -32,6 +34,21 @@ def build_agent(settings: Settings, memory_scope: str = "") -> HermesAgent:
         storage=build_storage(settings),
         profile_memory=ProfileMemory(memory_dir / "profile.json"),
         diary_index=DiaryIndexMemory(memory_dir / "diary_index.json"),
+        tool_router=build_tool_router(settings),
+    )
+
+
+def build_mcp_client(settings: Settings) -> McpClient:
+    if settings.mcp_notion_url:
+        return HttpMcpClient(settings.mcp_notion_url, timeout=settings.mcp_timeout)
+    return DisabledMcpClient()
+
+
+def build_tool_router(settings: Settings) -> ToolRouter:
+    return ToolRouter(
+        mcp_client=build_mcp_client(settings),
+        notion_enabled=settings.notion_tool == "mcp",
+        notion_search_tool=settings.mcp_notion_search_tool,
     )
 
 

@@ -9,6 +9,7 @@ from .llm import LocalLLMClient
 from .memory import ConversationMemory, DiaryIndexMemory, ProfileMemory
 from .messages import ChatMessage
 from .tools import DiaryTool
+from .tool_router import ToolRouter
 
 
 class HermesAgent:
@@ -21,12 +22,14 @@ class HermesAgent:
         memory: ConversationMemory | None = None,
         profile_memory: ProfileMemory | None = None,
         diary_index: DiaryIndexMemory | None = None,
+        tool_router: ToolRouter | None = None,
     ) -> None:
         self.llm = llm
         self.memory = memory or ConversationMemory()
         self.profile_memory = profile_memory or ProfileMemory()
         self.diary_index = diary_index or DiaryIndexMemory()
         self.diary_tool = DiaryTool(storage)
+        self.tool_router = tool_router or ToolRouter()
 
     def respond(self, user_input: str) -> str:
         self.memory.add_user(user_input)
@@ -75,6 +78,12 @@ class HermesAgent:
 
     def search_diaries(self, query: str, limit: int = 5) -> list[dict]:
         return self.diary_index.search(query, limit)
+
+    def tool_status(self) -> str:
+        return self.tool_router.status_report()
+
+    def search_notion(self, query: str) -> str:
+        return self.tool_router.search_notion(query).message
 
     def _system_prompt(self) -> str:
         contexts = [

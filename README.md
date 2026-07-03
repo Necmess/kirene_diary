@@ -34,6 +34,8 @@ python -m unittest discover -s tests
 - `/기억` 또는 `/memory` — 저장된 장기 기억과 일기 인덱스 확인
 - `/최근` 또는 `/recent` — 최근 일기 인덱스 확인
 - `/일기검색 검색어` 또는 `/search query` — 일기 인덱스 검색
+- `/도구` 또는 `/tools` — 외부 도구 연결 상태 확인
+- `/노션검색 검색어` 또는 `/notion query` — Notion MCP 검색
 - `/이름 홍길동` 또는 `/name Hong` — 사용자 이름 저장
 - `/기억추가 내용` 또는 `/remember text` — 장기 기억 메모 추가
 - `/선호추가 내용` 또는 `/prefer text` — 선호하는 응답 방식 추가
@@ -50,7 +52,9 @@ python -m unittest discover -s tests
 - `hermes/config.py` — `.env`와 환경변수 기반 설정
 - `hermes/discord_app.py` — Discord 메시지 어댑터
 - `hermes/llm.py` — 로컬 LLM 클라이언트. 기본값은 Ollama chat API
+- `hermes/mcp_client.py` — 분리된 MCP 프로세스와 통신하는 최소 클라이언트
 - `hermes/memory.py` — 현재 세션 대화 메모리
+- `hermes/tool_router.py` — 외부 도구 호출 정책과 라우팅
 - `hermes/tools.py` — 에이전트가 사용하는 도구. 현재는 일기 저장 도구
 - `persona.py` — 키레네 시스템 프롬프트·일기 지시문
 - `storage.py` — 저장소 추상화. `LocalMarkdownStorage` / `NotionStorage`
@@ -76,6 +80,10 @@ python -m unittest discover -s tests
 - `NOTION_TOKEN`, `NOTION_DATABASE_ID` Notion 저장소 사용 시 필요
 - `DISCORD_BOT_TOKEN` Discord 봇 실행 시 필요
 - `DISCORD_COMMAND_PREFIX` Discord에서 봇을 부를 접두어 (기본: `!키레네`)
+- `CYRENE_NOTION_TOOL` Notion 외부 도구 사용 방식. `disabled` 또는 `mcp` (기본: `disabled`)
+- `CYRENE_MCP_NOTION_URL` 분리된 Notion MCP 서버 URL
+- `CYRENE_MCP_TIMEOUT` MCP 요청 타임아웃 초
+- `CYRENE_MCP_NOTION_SEARCH_TOOL` Notion MCP 검색 도구명
 
 `.env.example`은 다른 작업 컴퓨터에서 사용할 설정 예시다. `.env` 파일이 있으면 앱 시작 시 자동으로 읽는다. 이미 셸에 설정된 환경변수는 `.env`보다 우선한다.
 
@@ -105,6 +113,37 @@ Discord에서는 접두어 뒤에 말을 붙인다.
 ```
 
 봇 멘션으로도 호출할 수 있다.
+
+## MCP 프로세스 분리
+
+Discord 봇과 Notion MCP 서버는 같은 머신에 있어도 다른 프로세스로 둔다.
+
+```text
+discord_bot.py
+→ HermesAgent
+→ MCP client
+→ Notion MCP server
+→ Notion API
+```
+
+봇 프로세스는 Discord 토큰과 LLM 설정을 갖고, Notion MCP 프로세스는 Notion 토큰을 갖는다. 이렇게 하면 Notion 권한 경계가 분리되고, 나중에 Calendar/File/Todo 같은 MCP 서버를 추가하기 쉽다.
+
+봇 쪽 `.env` 예:
+
+```env
+DISCORD_BOT_TOKEN=xxx
+CYRENE_NOTION_TOOL=mcp
+CYRENE_MCP_NOTION_URL=http://localhost:8765
+```
+
+MCP 서버 쪽 `.env` 예:
+
+```env
+NOTION_TOKEN=secret_xxx
+NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+현재 코드는 `tools/call` 형태의 JSON-RPC HTTP 요청을 보내는 최소 클라이언트 틀을 제공한다. 실제 MCP 서버의 transport와 도구명은 본 작업 환경에서 맞춘다.
 
 ## 메모리 파일
 

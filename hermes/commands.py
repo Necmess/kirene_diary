@@ -12,6 +12,8 @@ CommandKind = Literal[
     "profile_update",
     "recent",
     "search",
+    "tool_status",
+    "notion_search",
 ]
 
 
@@ -28,6 +30,8 @@ HELP_TEXT = """\
 - /기억, /memory: 저장된 장기 기억과 일기 인덱스 확인
 - /최근, /recent: 최근 일기 인덱스 보기
 - /일기검색 검색어, /search query: 일기 인덱스 검색
+- /도구, /tools: 외부 도구 연결 상태 확인
+- /노션검색 검색어, /notion query: Notion MCP 검색
 - /이름 이름, /name name: 사용자 이름 저장
 - /기억추가 내용, /remember text: 장기 기억 메모 추가
 - /선호추가 내용, /prefer text: 선호하는 응답 방식 추가
@@ -46,12 +50,17 @@ def parse_command(user_input: str) -> ParsedCommand:
         return ParsedCommand(kind="memory_report")
     if text in ("/최근", "/recent"):
         return ParsedCommand(kind="recent")
+    if text in ("/도구", "/tools"):
+        return ParsedCommand(kind="tool_status")
     if text in ("/일기", "/diary"):
         return ParsedCommand(kind="diary")
 
     for prefix in ("/일기검색 ", "/search "):
         if text.startswith(prefix):
             return ParsedCommand(kind="search", value=text[len(prefix) :].strip())
+    for prefix in ("/노션검색 ", "/notion "):
+        if text.startswith(prefix):
+            return ParsedCommand(kind="notion_search", value=text[len(prefix) :].strip())
 
     profile_commands = {
         "/이름 ": "name",

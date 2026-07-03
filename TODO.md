@@ -8,6 +8,8 @@
 - Add a command to search recent diary entries.
 - Add model comparison notes after testing on the main work machine.
 - Add Discord deployment notes after creating the bot in the Discord developer portal.
+- Wire the MCP client to the actual Notion MCP server transport used on the main work machine.
+- Confirm Notion MCP tool names and update `CYRENE_MCP_NOTION_SEARCH_TOOL`.
 
 ## Later
 

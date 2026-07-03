@@ -12,8 +12,11 @@ from hermes.discord_app import (
     DiscordSessionRegistry,
     clip_discord_message,
     extract_command_text,
+    handle_discord_text,
 )
+from hermes.mcp_client import DisabledMcpClient, McpClientError
 from hermes.memory import DiaryIndexMemory, ProfileMemory
+from hermes.tool_router import ToolRouter
 from storage import LocalMarkdownStorage, NotionStorage
 
 
@@ -161,6 +164,21 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.discord_bot_token, "token")
         self.assertEqual(settings.discord_command_prefix, "!cyrene")
 
+    def test_mcp_settings_load(self) -> None:
+        env = {
+            "CYRENE_NOTION_TOOL": "mcp",
+            "CYRENE_MCP_NOTION_URL": "http://localhost:8765",
+            "CYRENE_MCP_TIMEOUT": "9",
+            "CYRENE_MCP_NOTION_SEARCH_TOOL": "search",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            settings = load_settings()
+
+        self.assertEqual(settings.notion_tool, "mcp")
+        self.assertEqual(settings.mcp_notion_url, "http://localhost:8765")
+        self.assertEqual(settings.mcp_timeout, 9)
+        self.assertEqual(settings.mcp_notion_search_tool, "search")
+
 
 class CommandTest(unittest.TestCase):
     def test_parse_builtin_commands(self) -> None:
@@ -168,6 +186,7 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(parse_command("/최근").kind, "recent")
         self.assertEqual(parse_command("/일기").kind, "diary")
         self.assertEqual(parse_command("/종료").kind, "exit")
+        self.assertEqual(parse_command("/도구").kind, "tool_status")
 
     def test_parse_profile_and_search_commands(self) -> None:
         profile = parse_command("/선호추가 짧게 답하기")
@@ -178,6 +197,9 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(profile.value, "짧게 답하기")
         self.assertEqual(search.kind, "search")
         self.assertEqual(search.value, "코드")
+        notion = parse_command("/노션검색 일기")
+        self.assertEqual(notion.kind, "notion_search")
+        self.assertEqual(notion.value, "일기")
 
     def test_format_diary_entries(self) -> None:
         text = format_diary_entries(
@@ -267,6 +289,53 @@ class DiscordAdapterTest(unittest.TestCase):
 
         self.assertIs(first, second)
         self.assertEqual(created, ["discord_1"])
+
+    def test_handle_discord_tool_status(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            agent = HermesAgent(
+                FakeLLM(),
+                LocalMarkdownStorage(Path(directory) / "diary"),
+                profile_memory=ProfileMemory(Path(directory) / "profile.json"),
+                diary_index=DiaryIndexMemory(Path(directory) / "index.json"),
+            )
+
+            self.assertIn("도구 상태", handle_discord_text(agent, "/도구"))
+
+
+class ToolRouterTest(unittest.TestCase):
+    def test_disabled_mcp_client_raises(self) -> None:
+        with self.assertRaises(McpClientError):
+            DisabledMcpClient().call_tool("search", {})
+
+    def test_notion_search_disabled(self) -> None:
+        router = ToolRouter()
+
+        result = router.search_notion("키레네")
+
+        self.assertFalse(result.ok)
+        self.assertIn("설정되지 않았습니다", result.message)
+
+    def test_notion_search_routes_to_mcp_tool(self) -> None:
+        class FakeMcp:
+            def __init__(self):
+                self.calls = []
+
+            def call_tool(self, name, arguments):
+                self.calls.append((name, arguments))
+                return {"content": [{"text": "검색 결과"}]}
+
+        client = FakeMcp()
+        router = ToolRouter(
+            mcp_client=client,
+            notion_enabled=True,
+            notion_search_tool="search",
+        )
+
+        result = router.search_notion("키레네")
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.message, "검색 결과")
+        self.assertEqual(client.calls, [("search", {"query": "키레네"})])
 
 
 if __name__ == "__main__":

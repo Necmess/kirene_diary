@@ -107,6 +107,12 @@ def main() -> None:
                 + "\n"
             )
             continue
+        if command.kind == "tool_status":
+            print("\n" + agent.tool_status() + "\n")
+            continue
+        if command.kind == "notion_search":
+            print("\n" + agent.search_notion(command.value) + "\n")
+            continue
         if command.kind == "profile_update":
             if not command.value:
                 print(f"{DIM}저장할 내용을 함께 입력해주세요.{RESET}")

@@ -76,6 +76,10 @@ def handle_discord_text(agent: HermesAgent, text: str) -> str:
         if not command.value:
             return "검색어를 함께 입력해줘."
         return format_diary_entries(agent.search_diaries(command.value), "검색 결과가 없습니다.")
+    if command.kind == "tool_status":
+        return agent.tool_status()
+    if command.kind == "notion_search":
+        return agent.search_notion(command.value)
     if command.kind == "profile_update":
         if not command.value:
             return "저장할 내용을 함께 입력해줘."

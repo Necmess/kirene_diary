@@ -18,6 +18,10 @@ class Settings:
     notion_version: str = "2022-06-28"
     discord_bot_token: str = ""
     discord_command_prefix: str = "!키레네"
+    notion_tool: str = "disabled"
+    mcp_notion_url: str = ""
+    mcp_timeout: int = 30
+    mcp_notion_search_tool: str = "notion_search"
 
 
 class ConfigError(ValueError):
@@ -45,9 +49,18 @@ def load_settings() -> Settings:
         os.environ.get("CYRENE_MAX_TOKENS", str(Settings.max_tokens)),
         "CYRENE_MAX_TOKENS",
     )
+    mcp_timeout = _positive_int(
+        os.environ.get("CYRENE_MCP_TIMEOUT", str(Settings.mcp_timeout)),
+        "CYRENE_MCP_TIMEOUT",
+    )
     storage = os.environ.get("CYRENE_STORAGE", Settings.storage).lower()
     if storage not in ("local", "notion"):
         raise ConfigError(f"CYRENE_STORAGE는 local 또는 notion이어야 합니다: {storage}")
+    notion_tool = os.environ.get("CYRENE_NOTION_TOOL", Settings.notion_tool).lower()
+    if notion_tool not in ("disabled", "mcp"):
+        raise ConfigError(
+            f"CYRENE_NOTION_TOOL은 disabled 또는 mcp여야 합니다: {notion_tool}"
+        )
 
     settings = Settings(
         model=os.environ.get("CYRENE_MODEL", Settings.model),
@@ -66,6 +79,12 @@ def load_settings() -> Settings:
         ),
         discord_command_prefix=os.environ.get(
             "DISCORD_COMMAND_PREFIX", Settings.discord_command_prefix
+        ),
+        notion_tool=notion_tool,
+        mcp_notion_url=os.environ.get("CYRENE_MCP_NOTION_URL", Settings.mcp_notion_url),
+        mcp_timeout=mcp_timeout,
+        mcp_notion_search_tool=os.environ.get(
+            "CYRENE_MCP_NOTION_SEARCH_TOOL", Settings.mcp_notion_search_tool
         ),
     )
     if settings.storage == "notion":
