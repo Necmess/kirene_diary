@@ -8,6 +8,10 @@
 명령어:
     /일기   지금까지의 대화로 일기를 생성하고 저장
     /기억   저장된 장기 기억과 일기 인덱스 확인
+    /이름   사용자 이름 저장
+    /기억추가   장기 기억 메모 추가
+    /선호추가   선호하는 응답 방식 추가
+    /회피추가   피해야 할 응답 방식 추가
     /종료   저장 없이 종료
 """
 
@@ -44,6 +48,29 @@ def write_diary(agent: HermesAgent) -> None:
     cyrene_says(f"오늘의 기억, 여기 남겨뒀어 → {location}\n또 만나자, 약속이다? 잊어버리면 안 돼♪")
 
 
+def handle_memory_command(agent: HermesAgent, user_input: str) -> bool:
+    commands = {
+        "/이름 ": agent.set_user_name,
+        "/name ": agent.set_user_name,
+        "/기억추가 ": agent.remember_note,
+        "/remember ": agent.remember_note,
+        "/선호추가 ": agent.remember_preference,
+        "/prefer ": agent.remember_preference,
+        "/회피추가 ": agent.remember_avoidance,
+        "/avoid ": agent.remember_avoidance,
+    }
+    for prefix, action in commands.items():
+        if user_input.startswith(prefix):
+            value = user_input[len(prefix) :].strip()
+            if not value:
+                print(f"{DIM}저장할 내용을 함께 입력해주세요.{RESET}")
+                return True
+            action(value)
+            print(f"{DIM}기억에 저장했습니다.{RESET}")
+            return True
+    return False
+
+
 def main() -> None:
     llm = LocalLLMClient(model=MODEL, url=LLM_URL, max_tokens=MAX_TOKENS)
     agent = HermesAgent(
@@ -68,6 +95,8 @@ def main() -> None:
             break
         if user_input in ("/기억", "/memory"):
             print("\n" + agent.memory_report() + "\n")
+            continue
+        if handle_memory_command(agent, user_input):
             continue
         if user_input in ("/일기", "/diary"):
             try:

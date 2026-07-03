@@ -56,6 +56,29 @@ class HermesAgentTest(unittest.TestCase):
             self.assertIn("코드 작업", data["entries"][0]["summary"])
             self.assertIn("일기 인덱스", agent.memory_report())
 
+    def test_manual_profile_updates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            profile = ProfileMemory(Path(directory) / "profile.json")
+            agent = HermesAgent(
+                FakeLLM(),
+                LocalMarkdownStorage(Path(directory) / "diary"),
+                profile_memory=profile,
+                diary_index=DiaryIndexMemory(Path(directory) / "index.json"),
+            )
+
+            agent.set_user_name("테스트")
+            agent.remember_preference("짧게 답하기")
+            agent.remember_preference("짧게 답하기")
+            agent.remember_note("코드 작업을 이어갈 예정")
+            agent.remember_avoidance("과장된 위로")
+            data = profile.load()
+
+            self.assertEqual(data["user_name"], "테스트")
+            self.assertEqual(data["preferences"], ["짧게 답하기"])
+            self.assertEqual(data["notes"], ["코드 작업을 이어갈 예정"])
+            self.assertEqual(data["avoid"], ["과장된 위로"])
+            self.assertIn("피해야 할 것", agent.memory_report())
+
 
 if __name__ == "__main__":
     unittest.main()

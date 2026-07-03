@@ -24,6 +24,10 @@ python -m unittest discover -s tests
 
 - `/일기` 또는 `/diary` — 지금까지의 대화로 일기를 생성하고 저장
 - `/기억` 또는 `/memory` — 저장된 장기 기억과 일기 인덱스 확인
+- `/이름 홍길동` 또는 `/name Hong` — 사용자 이름 저장
+- `/기억추가 내용` 또는 `/remember text` — 장기 기억 메모 추가
+- `/선호추가 내용` 또는 `/prefer text` — 선호하는 응답 방식 추가
+- `/회피추가 내용` 또는 `/avoid text` — 피해야 할 응답 방식 추가
 - `/종료`, `/exit`, `/quit` — 저장 없이 종료
 
 ## 구조

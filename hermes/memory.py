@@ -62,6 +62,24 @@ class ProfileMemory:
             json.dump(self._with_defaults(profile), file, ensure_ascii=False, indent=2)
             file.write("\n")
 
+    def set_user_name(self, name: str) -> None:
+        profile = self.load()
+        profile["user_name"] = name.strip() or None
+        self.save(profile)
+
+    def add_value(self, key: str, value: str) -> None:
+        if key not in self.DEFAULT_PROFILE or key == "user_name":
+            raise ValueError(f"지원하지 않는 프로필 키입니다: {key}")
+        cleaned = value.strip()
+        if not cleaned:
+            return
+        profile = self.load()
+        values = [str(item) for item in profile.get(key, [])]
+        if cleaned not in values:
+            values.append(cleaned)
+        profile[key] = values
+        self.save(profile)
+
     def render_context(self) -> str:
         profile = self.load()
         lines: list[str] = []
