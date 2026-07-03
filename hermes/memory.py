@@ -1,6 +1,7 @@
 """Memory components for the Hermes agent."""
 
 import json
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -109,6 +110,30 @@ class DiaryIndexMemory:
             json.dump(data, file, ensure_ascii=False, indent=2)
             file.write("\n")
 
+    def add_entry(
+        self,
+        entry_date: date,
+        location: str,
+        content: str,
+        summary: str | None = None,
+    ) -> None:
+        data = self.load()
+        entries = [
+            entry
+            for entry in data["entries"]
+            if entry.get("date") != entry_date.isoformat()
+        ]
+        entries.append(
+            {
+                "date": entry_date.isoformat(),
+                "location": location,
+                "summary": summary or self._excerpt(content),
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+            }
+        )
+        data["entries"] = sorted(entries, key=lambda entry: entry.get("date", ""))
+        self.save(data)
+
     def recent_context(self, limit: int = 3) -> str:
         entries = self.load()["entries"][-limit:]
         lines = []
@@ -120,3 +145,26 @@ class DiaryIndexMemory:
         if not lines:
             return ""
         return "## 최근 일기 요약\n" + "\n".join(lines)
+
+    def render_context(self) -> str:
+        entries = self.load()["entries"]
+        if not entries:
+            return ""
+        lines = []
+        for entry in entries:
+            date = entry.get("date", "unknown")
+            summary = entry.get("summary", "")
+            location = entry.get("location", "")
+            line = f"- {date}"
+            if summary:
+                line += f": {summary}"
+            if location:
+                line += f" ({location})"
+            lines.append(line)
+        return "## 일기 인덱스\n" + "\n".join(lines)
+
+    def _excerpt(self, content: str, limit: int = 120) -> str:
+        text = " ".join(line.strip() for line in content.splitlines() if line.strip())
+        if len(text) <= limit:
+            return text
+        return text[: limit - 1].rstrip() + "…"

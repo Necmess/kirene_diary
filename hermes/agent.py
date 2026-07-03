@@ -1,5 +1,7 @@
 """Hermes-style orchestrator for the Cyrene diary agent."""
 
+from datetime import date
+
 from persona import CYRENE_SYSTEM_PROMPT, DIARY_INSTRUCTION
 from storage import DiaryStorage
 
@@ -45,7 +47,16 @@ class HermesAgent:
         ]
         entry = self.llm.chat(self._system_prompt(), diary_messages)
         location = self.diary_tool.save_today(entry)
+        self.diary_index.add_entry(date.today(), location, entry)
         return entry, location
+
+    def memory_report(self) -> str:
+        contexts = [
+            self.profile_memory.render_context(),
+            self.diary_index.render_context(),
+        ]
+        report = "\n\n".join(context for context in contexts if context)
+        return report or "아직 저장된 장기 기억이 없습니다."
 
     def _system_prompt(self) -> str:
         contexts = [

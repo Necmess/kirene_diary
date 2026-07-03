@@ -7,6 +7,7 @@
 
 명령어:
     /일기   지금까지의 대화로 일기를 생성하고 저장
+    /기억   저장된 장기 기억과 일기 인덱스 확인
     /종료   저장 없이 종료
 """
 
@@ -65,6 +66,9 @@ def main() -> None:
         if user_input in ("/종료", "/exit", "/quit"):
             cyrene_says("이 몸은 작별을 좋아하지 않아. 차라리… 여운을 남기는 건 어떨까?")
             break
+        if user_input in ("/기억", "/memory"):
+            print("\n" + agent.memory_report() + "\n")
+            continue
         if user_input in ("/일기", "/diary"):
             try:
                 write_diary(agent)

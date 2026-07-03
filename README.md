@@ -10,9 +10,21 @@ ollama pull gemma3:4b
 python main.py
 ```
 
+## 테스트
+
+로컬 모델 없이 코드 구조만 검증한다.
+
+```bash
+python -m unittest discover -s tests
+```
+
 ## 사용
 
-키레네와 오늘 있었던 일을 자유롭게 얘기한 뒤 `/일기`를 입력하면 대화 내용으로 일기를 생성해 `diary/YYYY-MM-DD.md`에 저장한다. `/종료`는 저장 없이 종료.
+키레네와 오늘 있었던 일을 자유롭게 얘기한 뒤 `/일기`를 입력하면 대화 내용으로 일기를 생성해 `diary/YYYY-MM-DD.md`에 저장한다.
+
+- `/일기` 또는 `/diary` — 지금까지의 대화로 일기를 생성하고 저장
+- `/기억` 또는 `/memory` — 저장된 장기 기억과 일기 인덱스 확인
+- `/종료`, `/exit`, `/quit` — 저장 없이 종료
 
 ## 구조
 
@@ -62,3 +74,5 @@ storage = NotionStorage(token=os.environ["NOTION_TOKEN"], database_id=os.environ
 
 - `memory/profile.example.json`
 - `memory/diary_index.example.json`
+
+`/일기`로 저장하면 `memory/diary_index.json`에 날짜, 저장 위치, 짧은 요약이 자동으로 기록된다. 요약은 현재 모델을 추가 호출하지 않고 일기 본문 앞부분에서 만든다.
