@@ -65,7 +65,7 @@ storage = NotionStorage(token=os.environ["NOTION_TOKEN"], database_id=os.environ
 - `CYRENE_MAX_TOKENS` 환경변수로 응답 길이 변경 가능 (기본: `1024`)
 - `CYRENE_MEMORY_DIR` 환경변수로 장기 메모리 디렉터리 변경 가능 (기본: `memory`)
 
-`.env.example`은 다른 작업 컴퓨터에서 사용할 설정 예시다. 현재 앱은 `.env`를 자동 로드하지 않으므로 필요한 값은 셸에서 export하거나 실행 환경에서 주입한다.
+`.env.example`은 다른 작업 컴퓨터에서 사용할 설정 예시다. `.env` 파일이 있으면 앱 시작 시 자동으로 읽는다. 이미 셸에 설정된 환경변수는 `.env`보다 우선한다.
 
 ## 메모리 파일
 

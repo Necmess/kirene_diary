@@ -15,17 +15,11 @@
     /종료   저장 없이 종료
 """
 
-import os
-
 from hermes import HermesAgent, LocalLLMClient, LocalLLMError
+from hermes.config import load_settings
 from hermes.memory import DiaryIndexMemory, ProfileMemory
 from persona import GREETING
 from storage import LocalMarkdownStorage
-
-MODEL = os.environ.get("CYRENE_MODEL", "gemma3:4b")
-LLM_URL = os.environ.get("CYRENE_LLM_URL", "http://localhost:11434/api/chat")
-MAX_TOKENS = int(os.environ.get("CYRENE_MAX_TOKENS", "1024"))
-MEMORY_DIR = os.environ.get("CYRENE_MEMORY_DIR", "memory")
 
 PINK = "\033[95m"
 DIM = "\033[2m"
@@ -72,12 +66,17 @@ def handle_memory_command(agent: HermesAgent, user_input: str) -> bool:
 
 
 def main() -> None:
-    llm = LocalLLMClient(model=MODEL, url=LLM_URL, max_tokens=MAX_TOKENS)
+    settings = load_settings()
+    llm = LocalLLMClient(
+        model=settings.model,
+        url=settings.llm_url,
+        max_tokens=settings.max_tokens,
+    )
     agent = HermesAgent(
         llm=llm,
         storage=LocalMarkdownStorage(),
-        profile_memory=ProfileMemory(f"{MEMORY_DIR}/profile.json"),
-        diary_index=DiaryIndexMemory(f"{MEMORY_DIR}/diary_index.json"),
+        profile_memory=ProfileMemory(f"{settings.memory_dir}/profile.json"),
+        diary_index=DiaryIndexMemory(f"{settings.memory_dir}/diary_index.json"),
     )
 
     cyrene_says(GREETING)

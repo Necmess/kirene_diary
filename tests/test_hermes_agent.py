@@ -1,8 +1,10 @@
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from hermes import HermesAgent
+from hermes.config import load_dotenv, load_settings
 from hermes.memory import DiaryIndexMemory, ProfileMemory
 from storage import LocalMarkdownStorage
 
@@ -78,6 +80,22 @@ class HermesAgentTest(unittest.TestCase):
             self.assertEqual(data["notes"], ["코드 작업을 이어갈 예정"])
             self.assertEqual(data["avoid"], ["과장된 위로"])
             self.assertIn("피해야 할 것", agent.memory_report())
+
+
+class ConfigTest(unittest.TestCase):
+    def test_load_dotenv_does_not_override_existing_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            env_path = Path(directory) / ".env"
+            env_path.write_text(
+                "CYRENE_MODEL=from-file\nCYRENE_MAX_TOKENS=512\n",
+                encoding="utf-8",
+            )
+            with mock.patch.dict("os.environ", {"CYRENE_MODEL": "from-env"}, clear=True):
+                load_dotenv(env_path)
+                settings = load_settings()
+
+            self.assertEqual(settings.model, "from-env")
+            self.assertEqual(settings.max_tokens, 512)
 
 
 if __name__ == "__main__":
