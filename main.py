@@ -20,7 +20,7 @@
 
 from hermes import HermesAgent, LocalLLMClient, LocalLLMError
 from hermes.commands import HELP_TEXT, format_diary_entries, parse_command
-from hermes.config import load_settings
+from hermes.config import ConfigError, load_settings
 from hermes.memory import DiaryIndexMemory, ProfileMemory
 from persona import GREETING
 from storage import LocalMarkdownStorage
@@ -60,7 +60,11 @@ def update_profile(agent: HermesAgent, action: str, value: str) -> None:
 
 
 def main() -> None:
-    settings = load_settings()
+    try:
+        settings = load_settings()
+    except ConfigError as e:
+        print(f"{DIM}설정 오류: {e}{RESET}")
+        return
     llm = LocalLLMClient(
         model=settings.model,
         url=settings.llm_url,

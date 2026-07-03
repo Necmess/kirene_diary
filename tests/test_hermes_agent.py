@@ -6,7 +6,7 @@ from pathlib import Path
 
 from hermes import HermesAgent
 from hermes.commands import format_diary_entries, parse_command
-from hermes.config import load_dotenv, load_settings
+from hermes.config import ConfigError, load_dotenv, load_settings
 from hermes.memory import DiaryIndexMemory, ProfileMemory
 from storage import LocalMarkdownStorage
 
@@ -116,6 +116,15 @@ class ConfigTest(unittest.TestCase):
 
             self.assertEqual(settings.model, "from-env")
             self.assertEqual(settings.max_tokens, 512)
+
+    def test_invalid_max_tokens_raises_config_error(self) -> None:
+        with mock.patch.dict("os.environ", {"CYRENE_MAX_TOKENS": "nope"}, clear=True):
+            with self.assertRaises(ConfigError):
+                load_settings()
+
+        with mock.patch.dict("os.environ", {"CYRENE_MAX_TOKENS": "0"}, clear=True):
+            with self.assertRaises(ConfigError):
+                load_settings()
 
 
 class CommandTest(unittest.TestCase):
