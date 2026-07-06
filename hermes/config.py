@@ -25,6 +25,9 @@ class Settings:
     mcp_notion_read_tool: str = "notion_read_page"
     mcp_notion_todo_tool: str = "notion_create_todo"
     safety_region: str = "GLOBAL"
+    obsidian_dir: str = ""
+    embed_model: str = "nomic-embed-text"
+    embed_url: str = "http://localhost:11434/api/embeddings"
 
 
 class ConfigError(ValueError):
@@ -96,6 +99,9 @@ def load_settings() -> Settings:
             "CYRENE_MCP_NOTION_TODO_TOOL", Settings.mcp_notion_todo_tool
         ),
         safety_region=os.environ.get("CYRENE_SAFETY_REGION", Settings.safety_region),
+        obsidian_dir=os.environ.get("CYRENE_OBSIDIAN_DIR", Settings.obsidian_dir),
+        embed_model=os.environ.get("CYRENE_EMBED_MODEL", Settings.embed_model),
+        embed_url=os.environ.get("CYRENE_EMBED_URL", Settings.embed_url),
     )
     if settings.storage == "notion":
         _required(settings.notion_token, "NOTION_TOKEN")

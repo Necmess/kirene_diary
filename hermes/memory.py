@@ -1,11 +1,23 @@
 """Memory components for the Hermes agent."""
 
 import json
+import math
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 from .messages import ChatMessage
+
+
+def cosine_similarity(a: list[float], b: list[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(y * y for y in b))
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
 
 
 class ConversationMemory:
@@ -137,6 +149,8 @@ class DiaryIndexMemory:
         location: str,
         content: str,
         summary: str | None = None,
+        tags: list[str] | None = None,
+        embedding: list[float] | None = None,
     ) -> None:
         data = self.load()
         entries = [
@@ -144,16 +158,45 @@ class DiaryIndexMemory:
             for entry in data["entries"]
             if entry.get("date") != entry_date.isoformat()
         ]
-        entries.append(
-            {
-                "date": entry_date.isoformat(),
-                "location": location,
-                "summary": summary or self._excerpt(content),
-                "created_at": datetime.now().isoformat(timespec="seconds"),
-            }
-        )
+        entry: dict[str, Any] = {
+            "date": entry_date.isoformat(),
+            "location": location,
+            "summary": summary or self._excerpt(content),
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+        }
+        if tags:
+            entry["tags"] = tags
+        if embedding:
+            entry["embedding"] = embedding
+        entries.append(entry)
         data["entries"] = sorted(entries, key=lambda entry: entry.get("date", ""))
         self.save(data)
+
+    def find_related(
+        self,
+        embedding: list[float],
+        exclude_date: str,
+        limit: int = 3,
+        threshold: float = 0.6,
+    ) -> list[str]:
+        """Return dates of past entries whose stored embedding is similar.
+
+        Entries saved before embeddings were enabled simply have no
+        "embedding" field and are skipped rather than treated as unrelated.
+        """
+        if not embedding:
+            return []
+        scored: list[tuple[float, str]] = []
+        for entry in self.load()["entries"]:
+            entry_date_str = entry.get("date")
+            candidate = entry.get("embedding")
+            if entry_date_str == exclude_date or not candidate:
+                continue
+            score = cosine_similarity(embedding, candidate)
+            if score >= threshold:
+                scored.append((score, entry_date_str))
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        return [entry_date_str for _, entry_date_str in scored[:limit]]
 
     def recent_context(self, limit: int = 3) -> str:
         entries = self.recent_entries(limit)

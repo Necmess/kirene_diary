@@ -1,6 +1,7 @@
 """Hermes-style orchestrator for the Cyrene diary agent."""
 
 from datetime import date
+from typing import Any
 
 from persona import CYRENE_SYSTEM_PROMPT, DIARY_INSTRUCTION
 from storage import DiaryStorage
@@ -12,6 +13,7 @@ from .pending import PendingAction
 from .safety import SAFETY_COVENANT, SafetyGuard
 from .tools import DiaryTool
 from .tool_router import ToolRouter
+from .wiki import ObsidianWiki, extract_tags
 
 
 class HermesAgent:
@@ -26,6 +28,8 @@ class HermesAgent:
         diary_index: DiaryIndexMemory | None = None,
         tool_router: ToolRouter | None = None,
         safety_guard: SafetyGuard | None = None,
+        wiki: ObsidianWiki | None = None,
+        embedding_client: Any | None = None,
     ) -> None:
         self.llm = llm
         self.memory = memory or ConversationMemory()
@@ -34,6 +38,8 @@ class HermesAgent:
         self.diary_tool = DiaryTool(storage)
         self.tool_router = tool_router or ToolRouter()
         self.safety_guard = safety_guard or SafetyGuard()
+        self.wiki = wiki
+        self.embedding_client = embedding_client
         self.pending_diary: str | None = None
         self.pending_action: PendingAction | None = None
 
@@ -88,9 +94,49 @@ class HermesAgent:
         if not content:
             raise ValueError("저장할 일기 초안이 없습니다.")
         location = self.diary_tool.save_today(content)
-        self.diary_index.add_entry(date.today(), location, content)
+        today = date.today()
+        tags, embedding = self._wiki_metadata(content)
+        self.diary_index.add_entry(today, location, content, tags=tags, embedding=embedding)
+        self._write_wiki_entry(today, tags, embedding, location)
         self.pending_diary = None
         return content, location
+
+    def _wiki_metadata(self, content: str) -> tuple[list[str], list[float] | None]:
+        if self.wiki is None:
+            return [], None
+        tags = extract_tags(self.llm, content)
+        embedding: list[float] | None = None
+        if self.embedding_client is not None:
+            try:
+                embedding = self.embedding_client.embed(content)
+            except Exception:
+                embedding = None
+        return tags, embedding
+
+    def _write_wiki_entry(
+        self,
+        entry_date: date,
+        tags: list[str],
+        embedding: list[float] | None,
+        location: str,
+    ) -> None:
+        if self.wiki is None:
+            return
+        related = (
+            self.diary_index.find_related(embedding, entry_date.isoformat())
+            if embedding
+            else []
+        )
+        summary_entries = self.diary_index.recent_entries(limit=1)
+        summary = summary_entries[0].get("summary", "") if summary_entries else ""
+        external_link = location if location.startswith("http") else ""
+        self.wiki.write_entry(
+            entry_date.isoformat(),
+            summary=summary,
+            tags=tags,
+            related_dates=related,
+            external_link=external_link,
+        )
 
     def discard_diary_draft(self) -> bool:
         had_draft = self.pending_diary is not None

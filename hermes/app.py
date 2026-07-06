@@ -6,11 +6,13 @@ from storage import DiaryStorage, LocalMarkdownStorage, NotionStorage
 
 from .agent import HermesAgent
 from .config import Settings
+from .embeddings import LocalEmbeddingClient
 from .llm import LocalLLMClient
 from .memory import DiaryIndexMemory, ProfileMemory
 from .mcp_client import DisabledMcpClient, HttpMcpClient, McpClient
 from .safety import SafetyGuard
 from .tool_router import ToolRouter
+from .wiki import ObsidianWiki
 
 
 def build_storage(settings: Settings) -> DiaryStorage:
@@ -37,7 +39,21 @@ def build_agent(settings: Settings, memory_scope: str = "") -> HermesAgent:
         diary_index=DiaryIndexMemory(memory_dir / "diary_index.json"),
         tool_router=build_tool_router(settings),
         safety_guard=SafetyGuard(region=settings.safety_region),
+        wiki=build_wiki(settings),
+        embedding_client=build_embedding_client(settings),
     )
+
+
+def build_wiki(settings: Settings) -> ObsidianWiki | None:
+    if not settings.obsidian_dir:
+        return None
+    return ObsidianWiki(settings.obsidian_dir)
+
+
+def build_embedding_client(settings: Settings) -> LocalEmbeddingClient | None:
+    if not settings.obsidian_dir:
+        return None
+    return LocalEmbeddingClient(model=settings.embed_model, url=settings.embed_url)
 
 
 def build_mcp_client(settings: Settings) -> McpClient:

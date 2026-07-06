@@ -63,6 +63,8 @@ python -m unittest discover -s tests
 - `hermes/memory.py` — 현재 세션 대화 메모리
 - `hermes/tool_router.py` — 외부 도구 호출 정책과 라우팅
 - `hermes/tools.py` — 에이전트가 사용하는 도구. 현재는 일기 저장 도구
+- `hermes/wiki.py` — 옵시디언 위키 노트 생성, 태그 추출
+- `hermes/embeddings.py` — 관련 일기 검색용 로컬 임베딩 클라이언트
 - `persona.py` — 키레네 시스템 프롬프트·일기 지시문
 - `storage.py` — 저장소 추상화. `LocalMarkdownStorage` / `NotionStorage`
 
@@ -105,6 +107,9 @@ python -m unittest discover -s tests
 - `CYRENE_MCP_NOTION_SEARCH_TOOL` Notion MCP 검색 도구명
 - `CYRENE_MCP_NOTION_READ_TOOL` Notion MCP 페이지 읽기 도구명
 - `CYRENE_MCP_NOTION_TODO_TOOL` Notion MCP 할 일 생성 도구명
+- `CYRENE_OBSIDIAN_DIR` 옵시디언 볼트 경로. 설정하면 위키 브레인 기능 활성화 (기본: 비활성)
+- `CYRENE_EMBED_MODEL` 관련 일기 검색에 쓸 임베딩 모델 (기본: `nomic-embed-text`)
+- `CYRENE_EMBED_URL` Ollama 호환 임베딩 API 주소 (기본: `http://localhost:11434/api/embeddings`)
 
 `.env.example`은 다른 작업 컴퓨터에서 사용할 설정 예시다. `.env` 파일이 있으면 앱 시작 시 자동으로 읽는다. 이미 셸에 설정된 환경변수는 `.env`보다 우선한다.
 
@@ -121,6 +126,27 @@ Notion 데이터베이스에는 최소한 아래 속성이 필요하다.
 CYRENE_STORAGE=notion
 NOTION_TOKEN=secret_xxx
 NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## 옵시디언 위키 (두뇌)
+
+일기 원문은 여전히 `CYRENE_STORAGE`가 가리키는 곳(Notion 또는 로컬 마크다운)에 저장된다. 옵시디언은 그 일기 원문을 대신하는 게 아니라, 태그와 "관련 일기" 링크로 서로 연결된 키레네의 두뇌 역할을 한다.
+
+`CYRENE_OBSIDIAN_DIR`을 옵시디언 볼트 폴더로 지정하면, `/저장`으로 일기를 저장할 때마다:
+
+1. 로컬 모델에게 짧은 키워드 태그를 몇 개 뽑아달라고 요청한다.
+2. (`CYRENE_EMBED_MODEL`이 pull되어 있으면) 임베딩을 계산해서 과거 일기 중 의미적으로 비슷한 항목을 찾는다.
+3. `{볼트}/일기/YYYY-MM-DD.md`에 요약, 태그, 관련 일기 `[[위키링크]]`, (Notion 저장이면) 원문 링크를 적는다.
+4. `{볼트}/태그/태그이름.md` 페이지를 만들어서, 옵시디언 백링크로 "이 태그가 붙은 일기들"을 볼 수 있게 한다.
+
+임베딩 모델이 없어도 태그/노트 생성은 그대로 동작하고, 관련 일기 링크만 비게 된다.
+
+```bash
+ollama pull nomic-embed-text
+```
+
+```env
+CYRENE_OBSIDIAN_DIR=/path/to/ObsidianVault/키레네
 ```
 
 ## Discord 사용
