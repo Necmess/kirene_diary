@@ -12,13 +12,13 @@ cp .env.example .env
 
 ```bash
 ollama serve
-ollama pull gemma3:4b
+ollama pull gemma4:e4b
 ```
 
 Set:
 
 ```env
-CYRENE_MODEL=gemma3:4b
+CYRENE_MODEL=gemma4:e4b
 CYRENE_LLM_URL=http://localhost:11434/api/chat
 ```
 

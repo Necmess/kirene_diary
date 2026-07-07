@@ -7,7 +7,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class Settings:
-    model: str = "gemma3:4b"
+    model: str = "gemma4:e4b"
     llm_url: str = "http://localhost:11434/api/chat"
     max_tokens: int = 1024
     memory_dir: str = "memory"

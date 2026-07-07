@@ -6,7 +6,7 @@
 
 ```bash
 ollama serve
-ollama pull gemma3:4b
+ollama pull gemma4:e4b
 python main.py
 ```
 
@@ -91,7 +91,7 @@ python -m unittest discover -s tests
 
 ## 설정
 
-- `CYRENE_MODEL` 환경변수로 모델 변경 가능 (기본: `gemma3:4b`)
+- `CYRENE_MODEL` 환경변수로 모델 변경 가능 (기본: `gemma4:e4b`)
 - `CYRENE_LLM_URL` 환경변수로 Ollama 호환 chat API 주소 변경 가능
 - `CYRENE_MAX_TOKENS` 환경변수로 응답 길이 변경 가능 (기본: `1024`)
 - `CYRENE_MEMORY_DIR` 환경변수로 장기 메모리 디렉터리 변경 가능 (기본: `memory`)
